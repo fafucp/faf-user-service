@@ -97,6 +97,8 @@ interface FafProperties {
 
         fun passwordReset(): PasswordReset
 
+        fun emailChange(): EmailChange
+
         fun username(): Username
 
         interface Registration {
@@ -157,6 +159,20 @@ interface FafProperties {
 
             @WithDefault("6")
             fun usernameReservationTimeInMonths(): Long
+        }
+
+        interface EmailChange {
+            @WithDefault("3600")
+            fun linkExpirationSeconds(): Long
+
+            @NotBlank
+            fun emailChangeUrlFormat(): String
+
+            @NotBlank
+            fun subject(): String
+
+            @NotBlank
+            fun mailTemplatePath(): String
         }
     }
 

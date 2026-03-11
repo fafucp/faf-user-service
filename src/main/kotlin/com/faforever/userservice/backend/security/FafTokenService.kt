@@ -25,6 +25,7 @@ enum class FafTokenType {
     REGISTRATION,
     PASSWORD_RESET,
     LINK_TO_STEAM,
+    EMAIL_CHANGE,
 }
 
 class SecretKeyGenerator {

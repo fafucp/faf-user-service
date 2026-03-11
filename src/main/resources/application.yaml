@@ -23,6 +23,10 @@ faf:
       password-reset-initiate-email-url-format: ${faf.self-url}/recover-account/email?identifier=%s
       subject: ${PASSWORD_RESET_EMAIL_SUBJECT:FAF password reset}
       mail-template-path: ${PASSWORD_RESET_MAIL_TEMPLATE_PATH:/config/mail/password-reset.html}
+    email-change:
+      email-change-url-format: ${faf.self-url}/account/confirm-email?token=%s
+      subject: ${EMAIL_CHANGE_SUBJECT:FAF email change confirmation}
+      mail-template-path: ${EMAIL_CHANGE_MAIL_TEMPLATE_PATH:/config/mail/email-change.html}
     username:
       minimum-days-between-username-change: ${MIN_DAYS_BETWEEN_NAME_CHANGE:30}
       username-reservation-time-in-months: ${NAME_RESERVATION_MONTHS:6}
@@ -120,6 +124,8 @@ quarkus:
         email-taken-mail-template-path: ${EMAIL_TAKEN_MAIL_TEMPLATE_PATH:../../../../src/main/mjml/dummy/test-email-taken.html}
       password-reset:
         mail-template-path: ${PASSWORD_RESET_MAIL_TEMPLATE_PATH:../../../../src/main/mjml/dummy/test-password-reset.html}
+      email-change:
+        mail-template-path: ${EMAIL_CHANGE_MAIL_TEMPLATE_PATH:../../../../src/main/mjml/dummy/test-email-change.html}
     irc:
       fixed:
         users:

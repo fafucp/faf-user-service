@@ -76,4 +76,9 @@ class EmailService(
         val mailBody = mailBodyBuilder.buildEmailTakenBody(desiredUsername, existingUsername, passwordResetUrl)
         mailSender.sendMail(email, properties.account().registration().emailTakenSubject(), mailBody, ContentType.HTML)
     }
+
+    fun sendEmailChangeMail(username: String, newEmail: String, emailChangeUrl: String) {
+        val mailBody = mailBodyBuilder.buildEmailChangeBody(username, emailChangeUrl)
+        mailSender.sendMail(newEmail, properties.account().emailChange().subject(), mailBody, ContentType.HTML)
+    }
 }
