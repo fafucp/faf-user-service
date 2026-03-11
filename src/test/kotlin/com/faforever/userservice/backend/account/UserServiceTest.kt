@@ -82,6 +82,15 @@ class UserServiceTest {
     }
 
     @Test
+    fun changePasswordTooShort() {
+        val testUser = User(1, USERNAME, "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3", EMAIL, null, null)
+
+        val result = userService.changePassword(testUser, "123", "short")
+
+        assertThat(result, instanceOf(ChangePasswordResult.PasswordTooShort::class.java))
+    }
+
+    @Test
     fun changeUsernameSuccess() {
         val testUser = User(1, USERNAME, PASSWORD, EMAIL, null, null)
         whenever(userRepository.existsByUsername("newUsername")).thenReturn(false)
@@ -124,6 +133,15 @@ class UserServiceTest {
         val result = userService.changeUsername(testUser, "newUsername")
 
         assertThat(result, instanceOf(ChangeUsernameResult.TooEarly::class.java))
+    }
+
+    @Test
+    fun changeUsernameInvalid() {
+        val testUser = User(1, USERNAME, PASSWORD, EMAIL, null, null)
+
+        val result = userService.changeUsername(testUser, "ab")
+
+        assertThat(result, instanceOf(ChangeUsernameResult.InvalidUsername::class.java))
     }
 
     @Test

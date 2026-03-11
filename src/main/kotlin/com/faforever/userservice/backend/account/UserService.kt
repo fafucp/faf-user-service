@@ -19,6 +19,7 @@ import java.time.OffsetDateTime
 sealed interface ChangePasswordResult {
     data object Success : ChangePasswordResult
     data object InvalidCurrentPassword : ChangePasswordResult
+    data object PasswordTooShort : ChangePasswordResult
 }
 
 sealed interface ChangeUsernameResult {
@@ -26,6 +27,7 @@ sealed interface ChangeUsernameResult {
     data object UsernameTaken : ChangeUsernameResult
     data object UsernameReserved : ChangeUsernameResult
     data object TooEarly : ChangeUsernameResult
+    data object InvalidUsername : ChangeUsernameResult
 }
 
 sealed interface ChangeEmailResult {
@@ -47,10 +49,15 @@ class UserService(
         private val LOG: Logger = LoggerFactory.getLogger(UserService::class.java)
         private const val KEY_USER_ID = "id"
         private const val KEY_NEW_EMAIL = "newEmail"
+        private const val MIN_PASSWORD_LENGTH = 6
     }
 
     @Transactional
     fun changePassword(user: User, currentPassword: String, newPassword: String): ChangePasswordResult {
+        if (newPassword.length < MIN_PASSWORD_LENGTH) {
+            return ChangePasswordResult.PasswordTooShort
+        }
+
         if (!passwordEncoder.matches(currentPassword, user.password)) {
             LOG.debug("Password change failed for user '{}': current password does not match", user.username)
             return ChangePasswordResult.InvalidCurrentPassword
@@ -65,6 +72,12 @@ class UserService(
 
     @Transactional
     fun changeUsername(user: User, newUsername: String): ChangeUsernameResult {
+        if (newUsername.length !in 3..15 || !newUsername[0].isLetter() ||
+            Regex("[^A-Za-z0-9_-]").containsMatchIn(newUsername)
+        ) {
+            return ChangeUsernameResult.InvalidUsername
+        }
+
         val minimumDays = fafProperties.account().username().minimumDaysBetweenUsernameChange()
         val reservationMonths = fafProperties.account().username().usernameReservationTimeInMonths()
 

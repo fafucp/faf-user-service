@@ -113,11 +113,6 @@ class AccountManagementView(
     private fun changePassword() {
         val currentUser = user ?: return
 
-        if (newPassword.value.length < 6) {
-            showDialog(getTranslation("register.password.size"))
-            return
-        }
-
         if (newPassword.value != confirmNewPassword.value) {
             showDialog(getTranslation("register.password.match"))
             return
@@ -132,6 +127,8 @@ class AccountManagementView(
             }
             is ChangePasswordResult.InvalidCurrentPassword ->
                 showDialog(getTranslation("account.changePassword.invalidCurrentPassword"))
+            is ChangePasswordResult.PasswordTooShort ->
+                showDialog(getTranslation("register.password.size"))
         }
     }
 
@@ -159,18 +156,7 @@ class AccountManagementView(
         val currentUser = user ?: return
         val username = newUsername.value
 
-        if (username.isBlank() || username.length < 3 || username.length > 15) {
-            showDialog(getTranslation("register.username.size"))
-            return
-        }
-
-        if (!username[0].isLetter()) {
-            showDialog(getTranslation("register.username.startsWithLetter"))
-            return
-        }
-
-        if (Regex("[^A-Za-z0-9_-]").containsMatchIn(username)) {
-            showDialog(getTranslation("register.username.alphanumeric"))
+        if (username.isBlank()) {
             return
         }
 
@@ -185,6 +171,8 @@ class AccountManagementView(
                 showDialog(getTranslation("account.changeUsername.reserved"))
             is ChangeUsernameResult.TooEarly ->
                 showDialog(getTranslation("account.changeUsername.tooEarly"))
+            is ChangeUsernameResult.InvalidUsername ->
+                showDialog(getTranslation("register.username.alphanumeric"))
         }
     }
 
