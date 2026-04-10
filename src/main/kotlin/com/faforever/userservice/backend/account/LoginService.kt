@@ -136,6 +136,7 @@ class LoginServiceImpl(
         return LoginResult.SuccessfulLogin(user.id!!, user.username)
     }
 
+    @Transactional
     override fun loginForUcp(usernameOrEmail: String, password: String, ip: IpAddress): LoginResult {
         if (throttlingRequired(ip)) {
             return LoginResult.ThrottlingActive
