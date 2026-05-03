@@ -49,8 +49,9 @@ class UcpChangeUsernameView(
         // Username rules
         val rulesText = """
             Username rules:
-            • Must be at least 3 characters
-            • Must be no more than 20 characters
+            • Must start with a letter
+            • Must be between 3 and 15 characters
+            • Allowed characters: letters, numbers, underscores, and dashes
             • Must be different from current username
         """.trimIndent()
         add(Paragraph(rulesText).apply {
