@@ -6,9 +6,6 @@ import com.vaadin.flow.router.Route
 @Route(value = "/ucp", layout = UcpLayout::class)
 class UcpAccountDataView : UcpPlaceholderView("ucp.nav.accountData")
 
-@Route(value = "/ucp/username", layout = UcpLayout::class)
-class UcpChangeUsernameView : UcpPlaceholderView("ucp.nav.changeUsername")
-
 @Route(value = "/ucp/email", layout = UcpLayout::class)
 class UcpChangeEmailView : UcpPlaceholderView("ucp.nav.changeEmail")
 
