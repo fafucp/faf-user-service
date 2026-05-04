@@ -61,6 +61,16 @@ data class Permission(
     val updateTime: LocalDateTime,
 ) : PanacheEntityBase
 
+@Entity(name = "user_group")
+data class Group(
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    val id: Int,
+    @Column(name = "technical_name")
+    val technicalName: String,
+) : PanacheEntityBase
+
+
 @Entity(name = "terms_of_service")
 data class TermsOfService(
     @Id
@@ -91,6 +101,23 @@ class UserRepository : PanacheRepositoryBase<User, Int> {
             Permission::class.java,
         ).setParameter("userId", userId)
             .resultList as List<Permission>
+
+    fun findUserGroups(userId: Int): List<Group> =
+        getEntityManager().createNativeQuery(
+            """
+            SELECT DISTINCT user_group.*
+            FROM user_group_assignment uga
+            INNER JOIN user_group ON uga.group_id = user_group.id
+            WHERE uga.user_id = :userId
+            """.trimIndent(),
+            Group::class.java,
+        ).setParameter("userId", userId)
+            .resultList as List<Group>
+
+    // user_group = all groups
+    // user_group_assignment = assigning groups to users
+    // group_permission = all permissions
+    // group_permission_assignment = assigning permissions to groups
 
     fun existsByUsername(username: String): Boolean = count("username = ?1", username) > 0
 
