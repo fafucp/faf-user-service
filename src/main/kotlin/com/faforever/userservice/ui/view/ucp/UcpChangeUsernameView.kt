@@ -3,7 +3,6 @@ package com.faforever.userservice.ui.view.ucp
 import com.faforever.userservice.backend.ucp.UcpSessionService
 import com.faforever.userservice.backend.ucp.UcpUsernameService
 import com.faforever.userservice.ui.layout.UcpLayout
-import com.vaadin.flow.component.UI
 import com.vaadin.flow.component.button.Button
 import com.vaadin.flow.component.button.ButtonVariant
 import com.vaadin.flow.component.html.H2
@@ -42,7 +41,7 @@ class UcpChangeUsernameView(
         // Current username section
         currentUsernameDisplay.text = getTranslation(
             "ucp.username.current",
-            ucpSessionService.getCurrentUser()?.userName ?: getTranslation("ucp.username.unknown")
+            ucpSessionService.getCurrentUser()?.userName ?: getTranslation("ucp.username.unknown"),
         )
         add(currentUsernameDisplay)
 
@@ -50,10 +49,12 @@ class UcpChangeUsernameView(
         add(newUsernameField)
 
         // Username rules
-        add(Paragraph(getTranslation("ucp.username.rules")).apply {
-            style.set("font-size", "var(--lumo-font-size-s)")
-            style.set("color", "var(--lumo-secondary-text-color)")
-        })
+        add(
+            Paragraph(getTranslation("ucp.username.rules")).apply {
+                style.set("font-size", "var(--lumo-font-size-s)")
+                style.set("color", "var(--lumo-secondary-text-color)")
+            },
+        )
 
         add(submitButton)
     }
@@ -75,7 +76,11 @@ class UcpChangeUsernameView(
                     .addThemeVariants(NotificationVariant.LUMO_ERROR)
             }
             UcpUsernameService.UsernameChangeResult.NotLoggedIn -> {
-                Notification.show(getTranslation("ucp.username.error.notLoggedIn"), 3000, Notification.Position.TOP_CENTER)
+                Notification.show(
+                    getTranslation("ucp.username.error.notLoggedIn"),
+                    3000,
+                    Notification.Position.TOP_CENTER,
+                )
                     .addThemeVariants(NotificationVariant.LUMO_ERROR)
             }
         }

@@ -55,7 +55,9 @@ class UcpUsernameService(
 
         // Check username-change cooldown
         if (fafProperties.account().username().minimumDaysBetweenUsernameChange() > 0) {
-            val cooldownStart = now.minusDays(fafProperties.account().username().minimumDaysBetweenUsernameChange().toLong())
+            val cooldownStart = now.minusDays(
+                fafProperties.account().username().minimumDaysBetweenUsernameChange().toLong(),
+            )
             if (nameRecordRepository.existsByUserIdAndChangeTimeAfter(currentUser.userId, cooldownStart)) {
                 return UsernameChangeResult.ValidationError("ucp.username.error.cooldown")
             }
