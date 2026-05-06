@@ -2,13 +2,18 @@ package com.faforever.userservice.backend.ucp
 
 import com.faforever.userservice.backend.account.RegistrationService
 import com.faforever.userservice.backend.account.UsernameStatus
+import com.faforever.userservice.backend.domain.NameRecord
+import com.faforever.userservice.backend.domain.NameRecordRepository
 import com.faforever.userservice.backend.domain.UserRepository
+import com.faforever.userservice.config.FafProperties
 import io.quarkus.test.InjectMock
 import io.quarkus.test.junit.QuarkusTest
 import jakarta.inject.Inject
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
@@ -22,10 +27,21 @@ class UcpUsernameServiceTest {
     lateinit var userRepository: UserRepository
 
     @InjectMock
+    lateinit var nameRecordRepository: NameRecordRepository
+
+    @InjectMock
     lateinit var ucpSessionService: UcpSessionService
 
     @InjectMock
     lateinit var registrationService: RegistrationService
+
+    @Inject
+    lateinit var fafProperties: FafProperties
+
+    @BeforeEach
+    fun setup() {
+        whenever(nameRecordRepository.existsByUserIdAndChangeTimeAfter(any(), any())).thenReturn(false)
+    }
 
     companion object {
         private const val USER_ID = 123
@@ -51,7 +67,7 @@ class UcpUsernameServiceTest {
         val result = service.changeUsername("")
 
         assertTrue(result is UcpUsernameService.UsernameChangeResult.ValidationError)
-        assertEquals("Username cannot be empty", (result as UcpUsernameService.UsernameChangeResult.ValidationError).message)
+        assertEquals("ucp.username.error.empty", (result as UcpUsernameService.UsernameChangeResult.ValidationError).message)
     }
 
     @Test
@@ -62,7 +78,7 @@ class UcpUsernameServiceTest {
         val result = service.changeUsername("ab")
 
         assertTrue(result is UcpUsernameService.UsernameChangeResult.ValidationError)
-        assertEquals("Username must be between 3 and 15 characters", (result as UcpUsernameService.UsernameChangeResult.ValidationError).message)
+        assertEquals("ucp.username.error.length", (result as UcpUsernameService.UsernameChangeResult.ValidationError).message)
     }
 
     @Test
@@ -73,7 +89,7 @@ class UcpUsernameServiceTest {
         val result = service.changeUsername(LONG_USERNAME)
 
         assertTrue(result is UcpUsernameService.UsernameChangeResult.ValidationError)
-        assertEquals("Username must be between 3 and 15 characters", (result as UcpUsernameService.UsernameChangeResult.ValidationError).message)
+        assertEquals("ucp.username.error.length", (result as UcpUsernameService.UsernameChangeResult.ValidationError).message)
     }
 
     @Test
@@ -84,7 +100,7 @@ class UcpUsernameServiceTest {
         val result = service.changeUsername("Bad*Name")
 
         assertTrue(result is UcpUsernameService.UsernameChangeResult.ValidationError)
-        assertEquals("Username can only contain letters, numbers, underscores, and dashes", (result as UcpUsernameService.UsernameChangeResult.ValidationError).message)
+        assertEquals("ucp.username.error.invalidCharacters", (result as UcpUsernameService.UsernameChangeResult.ValidationError).message)
     }
 
     @Test
@@ -95,7 +111,7 @@ class UcpUsernameServiceTest {
         val result = service.changeUsername("_startsWithUnderscore")
 
         assertTrue(result is UcpUsernameService.UsernameChangeResult.ValidationError)
-        assertEquals("Username must start with a letter", (result as UcpUsernameService.UsernameChangeResult.ValidationError).message)
+        assertEquals("ucp.username.error.mustStartWithLetter", (result as UcpUsernameService.UsernameChangeResult.ValidationError).message)
     }
 
     @Test
@@ -106,7 +122,7 @@ class UcpUsernameServiceTest {
         val result = service.changeUsername(USERNAME)
 
         assertTrue(result is UcpUsernameService.UsernameChangeResult.ValidationError)
-        assertEquals("New username must be different from current username", (result as UcpUsernameService.UsernameChangeResult.ValidationError).message)
+        assertEquals("ucp.username.error.sameAsCurrent", (result as UcpUsernameService.UsernameChangeResult.ValidationError).message)
     }
 
     @Test
@@ -118,7 +134,7 @@ class UcpUsernameServiceTest {
         val result = service.changeUsername(NEW_USERNAME)
 
         assertTrue(result is UcpUsernameService.UsernameChangeResult.ValidationError)
-        assertEquals("Username is already taken", (result as UcpUsernameService.UsernameChangeResult.ValidationError).message)
+        assertEquals("ucp.username.error.taken", (result as UcpUsernameService.UsernameChangeResult.ValidationError).message)
     }
 
     @Test
@@ -130,7 +146,7 @@ class UcpUsernameServiceTest {
         val result = service.changeUsername(NEW_USERNAME)
 
         assertTrue(result is UcpUsernameService.UsernameChangeResult.ValidationError)
-        assertEquals("Username is reserved", (result as UcpUsernameService.UsernameChangeResult.ValidationError).message)
+        assertEquals("ucp.username.error.reserved", (result as UcpUsernameService.UsernameChangeResult.ValidationError).message)
     }
 
     @Test
@@ -147,7 +163,20 @@ class UcpUsernameServiceTest {
         assertEquals(NEW_USERNAME, success.newUsername)
 
         verify(userRepository).updateUsername(USER_ID, NEW_USERNAME)
+        verify(nameRecordRepository).persist(any<NameRecord>())
         verify(ucpSessionService).setCurrentUser(UcpUser(USER_ID, NEW_USERNAME))
+    }
+
+    @Test
+    fun `changeUsername returns ValidationError when username change cooldown is active`() {
+        val user = UcpUser(USER_ID, USERNAME)
+        whenever(ucpSessionService.getCurrentUser()).thenReturn(user)
+        whenever(nameRecordRepository.existsByUserIdAndChangeTimeAfter(any(), any())).thenReturn(true)
+
+        val result = service.changeUsername(NEW_USERNAME)
+
+        assertTrue(result is UcpUsernameService.UsernameChangeResult.ValidationError)
+        assertEquals("ucp.username.error.cooldown", (result as UcpUsernameService.UsernameChangeResult.ValidationError).message)
     }
 
     @Test
@@ -164,15 +193,14 @@ class UcpUsernameServiceTest {
     }
 
     @Test
-    fun `changeUsername returns ValidationError when repository update fails`() {
+    fun `changeUsername throws exception when repository update fails`() {
         val user = UcpUser(USER_ID, USERNAME)
         whenever(ucpSessionService.getCurrentUser()).thenReturn(user)
         whenever(registrationService.usernameAvailable(NEW_USERNAME)).thenReturn(UsernameStatus.USERNAME_AVAILABLE)
         whenever(userRepository.updateUsername(USER_ID, NEW_USERNAME)).thenThrow(RuntimeException("DB error"))
 
-        val result = service.changeUsername(NEW_USERNAME)
-
-        assertTrue(result is UcpUsernameService.UsernameChangeResult.ValidationError)
-        assertEquals("Unable to change username. Please try again later.", (result as UcpUsernameService.UsernameChangeResult.ValidationError).message)
+        assertThrows(RuntimeException::class.java) {
+            service.changeUsername(NEW_USERNAME)
+        }
     }
 }

@@ -21,7 +21,7 @@ class UcpChangeUsernameView(
 ) : VerticalLayout() {
 
     private val newUsernameField = TextField().apply {
-        label = "New Username"
+        label = getTranslation("ucp.username.newUsername")
         setWidthFull()
     }
 
@@ -29,7 +29,7 @@ class UcpChangeUsernameView(
         setWidthFull()
     }
 
-    private val submitButton = Button("Change Username") { handleChangeUsername() }.apply {
+    private val submitButton = Button(getTranslation("ucp.username.submit")) { handleChangeUsername() }.apply {
         addThemeVariants(ButtonVariant.LUMO_PRIMARY)
     }
 
@@ -37,24 +37,20 @@ class UcpChangeUsernameView(
         setPadding(true)
         setSizeFull()
 
-        add(H2(getTranslation("ucp.nav.changeUsername")))
+        add(H2(getTranslation("ucp.username.title")))
 
         // Current username section
-        currentUsernameDisplay.text = "Current username: ${ucpSessionService.getCurrentUser()?.userName ?: "Unknown"}"
+        currentUsernameDisplay.text = getTranslation(
+            "ucp.username.current",
+            ucpSessionService.getCurrentUser()?.userName ?: getTranslation("ucp.username.unknown")
+        )
         add(currentUsernameDisplay)
 
         // Form section
         add(newUsernameField)
 
         // Username rules
-        val rulesText = """
-            Username rules:
-            • Must start with a letter
-            • Must be between 3 and 15 characters
-            • Allowed characters: letters, numbers, underscores, and dashes
-            • Must be different from current username
-        """.trimIndent()
-        add(Paragraph(rulesText).apply {
+        add(Paragraph(getTranslation("ucp.username.rules")).apply {
             style.set("font-size", "var(--lumo-font-size-s)")
             style.set("color", "var(--lumo-secondary-text-color)")
         })
@@ -68,18 +64,18 @@ class UcpChangeUsernameView(
 
         when (result) {
             is UcpUsernameService.UsernameChangeResult.Success -> {
-                Notification.show("Username changed successfully", 3000, Notification.Position.TOP_CENTER)
+                Notification.show(getTranslation("ucp.username.success"), 3000, Notification.Position.TOP_CENTER)
                     .addThemeVariants(NotificationVariant.LUMO_SUCCESS)
                 newUsernameField.clear()
-                // Refresh the view to update the current username display
-                UI.getCurrent().navigate(UcpChangeUsernameView::class.java)
+                // Update the current username display in-place to avoid heavy navigation
+                currentUsernameDisplay.text = getTranslation("ucp.username.current", result.newUsername)
             }
             is UcpUsernameService.UsernameChangeResult.ValidationError -> {
-                Notification.show(result.message, 3000, Notification.Position.TOP_CENTER)
+                Notification.show(getTranslation(result.message), 3000, Notification.Position.TOP_CENTER)
                     .addThemeVariants(NotificationVariant.LUMO_ERROR)
             }
             UcpUsernameService.UsernameChangeResult.NotLoggedIn -> {
-                Notification.show("You must be logged in to change your username", 3000, Notification.Position.TOP_CENTER)
+                Notification.show(getTranslation("ucp.username.error.notLoggedIn"), 3000, Notification.Position.TOP_CENTER)
                     .addThemeVariants(NotificationVariant.LUMO_ERROR)
             }
         }
