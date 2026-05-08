@@ -2,6 +2,7 @@ package com.faforever.userservice.backend.ucp
 
 import com.faforever.userservice.backend.account.RegistrationService
 import com.faforever.userservice.backend.account.UsernameStatus
+import com.faforever.userservice.backend.account.UsernameValidator
 import com.faforever.userservice.backend.domain.NameRecord
 import com.faforever.userservice.backend.domain.NameRecordRepository
 import com.faforever.userservice.backend.domain.UserRepository
@@ -37,15 +38,15 @@ class UcpUsernameService(
             return UsernameChangeResult.ValidationError("ucp.username.error.empty")
         }
 
-        if (!trimmedUsername[0].isLetter()) {
+        if (!UsernameValidator.startsWithLetter(trimmedUsername)) {
             return UsernameChangeResult.ValidationError("ucp.username.error.mustStartWithLetter")
         }
 
-        if (trimmedUsername.length !in 3..15) {
+        if (!UsernameValidator.hasValidLength(trimmedUsername)) {
             return UsernameChangeResult.ValidationError("ucp.username.error.length")
         }
 
-        if (Regex("[^A-Za-z0-9_-]").containsMatchIn(trimmedUsername)) {
+        if (!UsernameValidator.containsOnlyAllowedCharacters(trimmedUsername)) {
             return UsernameChangeResult.ValidationError("ucp.username.error.invalidCharacters")
         }
 
@@ -76,15 +77,20 @@ class UcpUsernameService(
         }
 
         val previousUsername = currentUser.userName
-        userRepository.updateUsername(currentUser.userId, trimmedUsername)
-        nameRecordRepository.persist(
-            NameRecord(
-                userId = currentUser.userId,
-                changeTime = now,
-                previousName = previousUsername,
-            ),
-        )
-        ucpSessionService.setCurrentUser(UcpUser(currentUser.userId, trimmedUsername))
+        try {
+            userRepository.updateUsername(currentUser.userId, trimmedUsername)
+            nameRecordRepository.persist(
+                NameRecord(
+                    userId = currentUser.userId,
+                    changeTime = now,
+                    previousName = previousUsername,
+                ),
+            )
+            ucpSessionService.setCurrentUser(UcpUser(currentUser.userId, trimmedUsername))
+        } catch (exception: Exception) {
+            return UsernameChangeResult.ValidationError("ucp.username.error.updateFailed")
+        }
+
         return UsernameChangeResult.Success(currentUser.userId, trimmedUsername)
     }
 }
