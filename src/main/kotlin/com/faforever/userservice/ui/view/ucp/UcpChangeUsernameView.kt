@@ -61,7 +61,16 @@ class UcpChangeUsernameView(
 
     private fun handleChangeUsername() {
         val newUsername = newUsernameField.value
-        val result = ucpUsernameService.changeUsername(newUsername)
+        val result = try {
+            ucpUsernameService.changeUsername(newUsername)
+        } catch (exception: Exception) {
+            Notification.show(
+                getTranslation("ucp.username.error.updateFailed"),
+                3000,
+                Notification.Position.TOP_CENTER,
+            ).addThemeVariants(NotificationVariant.LUMO_ERROR)
+            return
+        }
 
         when (result) {
             is UcpUsernameService.UsernameChangeResult.Success -> {

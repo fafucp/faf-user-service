@@ -10,6 +10,7 @@ import io.quarkus.test.InjectMock
 import io.quarkus.test.junit.QuarkusTest
 import jakarta.inject.Inject
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -220,18 +221,14 @@ class UcpUsernameServiceTest {
     }
 
     @Test
-    fun `changeUsername returns ValidationError when repository update fails`() {
+    fun `changeUsername throws exception when repository update fails`() {
         val user = UcpUser(USER_ID, USERNAME)
         whenever(ucpSessionService.getCurrentUser()).thenReturn(user)
         whenever(registrationService.usernameAvailable(NEW_USERNAME)).thenReturn(UsernameStatus.USERNAME_AVAILABLE)
         whenever(userRepository.updateUsername(USER_ID, NEW_USERNAME)).thenThrow(RuntimeException("DB error"))
 
-        val result = service.changeUsername(NEW_USERNAME)
-
-        assertTrue(result is UcpUsernameService.UsernameChangeResult.ValidationError)
-        assertEquals(
-            "ucp.username.error.updateFailed",
-            (result as UcpUsernameService.UsernameChangeResult.ValidationError).message,
-        )
+        assertThrows(RuntimeException::class.java) {
+            service.changeUsername(NEW_USERNAME)
+        }
     }
 }

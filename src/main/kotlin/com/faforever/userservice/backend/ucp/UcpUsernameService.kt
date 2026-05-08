@@ -77,19 +77,15 @@ class UcpUsernameService(
         }
 
         val previousUsername = currentUser.userName
-        try {
-            userRepository.updateUsername(currentUser.userId, trimmedUsername)
-            nameRecordRepository.persist(
-                NameRecord(
-                    userId = currentUser.userId,
-                    changeTime = now,
-                    previousName = previousUsername,
-                ),
-            )
-            ucpSessionService.setCurrentUser(UcpUser(currentUser.userId, trimmedUsername))
-        } catch (exception: Exception) {
-            return UsernameChangeResult.ValidationError("ucp.username.error.updateFailed")
-        }
+        userRepository.updateUsername(currentUser.userId, trimmedUsername)
+        nameRecordRepository.persist(
+            NameRecord(
+                userId = currentUser.userId,
+                changeTime = now,
+                previousName = previousUsername,
+            ),
+        )
+        ucpSessionService.setCurrentUser(UcpUser(currentUser.userId, trimmedUsername))
 
         return UsernameChangeResult.Success(currentUser.userId, trimmedUsername)
     }
