@@ -1,6 +1,7 @@
 package com.faforever.userservice.ui.view.ucp
 
 import com.faforever.userservice.backend.ucp.UcpSessionService
+import com.faforever.userservice.backend.ucp.UcpUser
 import com.faforever.userservice.backend.ucp.UcpUsernameService
 import com.faforever.userservice.ui.layout.UcpLayout
 import com.vaadin.flow.component.button.Button
@@ -60,9 +61,10 @@ class UcpChangeUsernameView(
     }
 
     private fun handleChangeUsername() {
+        val currentUser = ucpSessionService.getCurrentUser()
         val newUsername = newUsernameField.value
         val result = try {
-            ucpUsernameService.changeUsername(newUsername)
+            ucpUsernameService.changeUsername(currentUser, newUsername)
         } catch (exception: Exception) {
             Notification.show(
                 getTranslation("ucp.username.error.updateFailed"),
@@ -74,6 +76,7 @@ class UcpChangeUsernameView(
 
         when (result) {
             is UcpUsernameService.UsernameChangeResult.Success -> {
+                ucpSessionService.setCurrentUser(UcpUser(result.userId, result.newUsername))
                 Notification.show(getTranslation("ucp.username.success"), 3000, Notification.Position.TOP_CENTER)
                     .addThemeVariants(NotificationVariant.LUMO_SUCCESS)
                 newUsernameField.clear()

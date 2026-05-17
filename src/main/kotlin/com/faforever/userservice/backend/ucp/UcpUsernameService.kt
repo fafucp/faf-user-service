@@ -13,7 +13,6 @@ import java.time.OffsetDateTime
 
 @ApplicationScoped
 class UcpUsernameService(
-    private val ucpSessionService: UcpSessionService,
     private val userRepository: UserRepository,
     private val nameRecordRepository: NameRecordRepository,
     private val registrationService: RegistrationService,
@@ -26,9 +25,8 @@ class UcpUsernameService(
     }
 
     @Transactional
-    fun changeUsername(newUsername: String): UsernameChangeResult {
-        val currentUser = ucpSessionService.getCurrentUser()
-            ?: return UsernameChangeResult.NotLoggedIn
+    fun changeUsername(currentUser: UcpUser?, newUsername: String): UsernameChangeResult {
+        val user = currentUser ?: return UsernameChangeResult.NotLoggedIn
 
         val trimmedUsername = newUsername.trim()
         val now = OffsetDateTime.now()
@@ -50,7 +48,7 @@ class UcpUsernameService(
             return UsernameChangeResult.ValidationError("ucp.username.error.invalidCharacters")
         }
 
-        if (trimmedUsername == currentUser.userName) {
+        if (trimmedUsername.equals(user.userName, ignoreCase = true)) {
             return UsernameChangeResult.ValidationError("ucp.username.error.sameAsCurrent")
         }
 
@@ -76,17 +74,16 @@ class UcpUsernameService(
             }
         }
 
-        val previousUsername = currentUser.userName
-        userRepository.updateUsername(currentUser.userId, trimmedUsername)
+        val previousUsername = user.userName
+        userRepository.updateUsername(user.userId, trimmedUsername)
         nameRecordRepository.persist(
             NameRecord(
-                userId = currentUser.userId,
+                userId = user.userId,
                 changeTime = now,
                 previousName = previousUsername,
             ),
         )
-        ucpSessionService.setCurrentUser(UcpUser(currentUser.userId, trimmedUsername))
 
-        return UsernameChangeResult.Success(currentUser.userId, trimmedUsername)
+        return UsernameChangeResult.Success(user.userId, trimmedUsername)
     }
 }
