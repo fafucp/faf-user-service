@@ -1,7 +1,5 @@
 package com.faforever.userservice.backend.ucp
 
-import com.faforever.userservice.backend.account.RegistrationService
-import com.faforever.userservice.backend.account.UsernameStatus
 import com.faforever.userservice.backend.domain.NameRecord
 import com.faforever.userservice.backend.domain.NameRecordRepository
 import com.faforever.userservice.backend.domain.UserRepository
@@ -31,15 +29,19 @@ class UcpUsernameServiceTest {
     @InjectMock
     lateinit var nameRecordRepository: NameRecordRepository
 
-    @InjectMock
-    lateinit var registrationService: RegistrationService
-
     @Inject
     lateinit var fafProperties: FafProperties
 
     @BeforeEach
     fun setup() {
         whenever(nameRecordRepository.existsByUserIdAndChangeTimeAfter(any(), any())).thenReturn(false)
+        whenever(
+            nameRecordRepository.existsByPreviousNameAndChangeTimeAfterAndUserIdNotEquals(
+                any(),
+                any(),
+                any(),
+            ),
+        ).thenReturn(false)
     }
 
     companion object {
@@ -137,7 +139,7 @@ class UcpUsernameServiceTest {
     @Test
     fun `changeUsername returns ValidationError when username is already taken`() {
         val user = UcpUser(USER_ID, USERNAME)
-        whenever(registrationService.usernameAvailable(NEW_USERNAME)).thenReturn(UsernameStatus.USERNAME_TAKEN)
+        whenever(userRepository.existsByUsername(NEW_USERNAME)).thenReturn(true)
 
         val result = service.changeUsername(user, NEW_USERNAME)
 
@@ -151,7 +153,13 @@ class UcpUsernameServiceTest {
     @Test
     fun `changeUsername returns ValidationError when username is reserved`() {
         val user = UcpUser(USER_ID, USERNAME)
-        whenever(registrationService.usernameAvailable(NEW_USERNAME)).thenReturn(UsernameStatus.USERNAME_RESERVED)
+        whenever(
+            nameRecordRepository.existsByPreviousNameAndChangeTimeAfterAndUserIdNotEquals(
+                any(),
+                any(),
+                any(),
+            ),
+        ).thenReturn(true)
 
         val result = service.changeUsername(user, NEW_USERNAME)
 
@@ -165,7 +173,7 @@ class UcpUsernameServiceTest {
     @Test
     fun `changeUsername succeeds and updates username`() {
         val user = UcpUser(USER_ID, USERNAME)
-        whenever(registrationService.usernameAvailable(NEW_USERNAME)).thenReturn(UsernameStatus.USERNAME_AVAILABLE)
+        whenever(userRepository.existsByUsername(NEW_USERNAME)).thenReturn(false)
 
         val result = service.changeUsername(user, NEW_USERNAME)
 
@@ -199,7 +207,7 @@ class UcpUsernameServiceTest {
     @Test
     fun `changeUsername trims whitespace from username`() {
         val user = UcpUser(USER_ID, USERNAME)
-        whenever(registrationService.usernameAvailable(NEW_USERNAME)).thenReturn(UsernameStatus.USERNAME_AVAILABLE)
+        whenever(userRepository.existsByUsername(NEW_USERNAME)).thenReturn(false)
 
         val result = service.changeUsername(user, "  $NEW_USERNAME  ")
 
@@ -210,7 +218,7 @@ class UcpUsernameServiceTest {
     @Test
     fun `changeUsername throws exception when repository update fails`() {
         val user = UcpUser(USER_ID, USERNAME)
-        whenever(registrationService.usernameAvailable(NEW_USERNAME)).thenReturn(UsernameStatus.USERNAME_AVAILABLE)
+        whenever(userRepository.existsByUsername(NEW_USERNAME)).thenReturn(false)
         whenever(userRepository.updateUsername(USER_ID, NEW_USERNAME)).thenThrow(RuntimeException("DB error"))
 
         assertThrows(RuntimeException::class.java) {

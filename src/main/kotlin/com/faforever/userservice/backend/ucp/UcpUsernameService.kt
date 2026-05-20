@@ -1,7 +1,5 @@
 package com.faforever.userservice.backend.ucp
 
-import com.faforever.userservice.backend.account.RegistrationService
-import com.faforever.userservice.backend.account.UsernameStatus
 import com.faforever.userservice.backend.account.UsernameValidator
 import com.faforever.userservice.backend.domain.NameRecord
 import com.faforever.userservice.backend.domain.NameRecordRepository
@@ -15,7 +13,6 @@ import java.time.OffsetDateTime
 class UcpUsernameService(
     private val userRepository: UserRepository,
     private val nameRecordRepository: NameRecordRepository,
-    private val registrationService: RegistrationService,
     private val fafProperties: FafProperties,
 ) {
     sealed interface UsernameChangeResult {
@@ -62,16 +59,23 @@ class UcpUsernameService(
             }
         }
 
-        when (registrationService.usernameAvailable(trimmedUsername)) {
-            UsernameStatus.USERNAME_TAKEN -> {
-                return UsernameChangeResult.ValidationError("ucp.username.error.taken")
-            }
-            UsernameStatus.USERNAME_RESERVED -> {
-                return UsernameChangeResult.ValidationError("ucp.username.error.reserved")
-            }
-            UsernameStatus.USERNAME_AVAILABLE -> {
-                // allowed, continue
-            }
+        // Check if username is taken by another user
+        if (userRepository.existsByUsername(trimmedUsername)) {
+            return UsernameChangeResult.ValidationError("ucp.username.error.taken")
+        }
+
+        // Check if username is reserved by someone else (not the current user)
+        val reservationCutoff = now.minusMonths(
+            fafProperties.account().username().usernameReservationTimeInMonths(),
+        )
+        val reservedByOtherUser = nameRecordRepository.existsByPreviousNameAndChangeTimeAfterAndUserIdNotEquals(
+            trimmedUsername,
+            reservationCutoff,
+            user.userId,
+        )
+
+        if (reservedByOtherUser) {
+            return UsernameChangeResult.ValidationError("ucp.username.error.reserved")
         }
 
         val previousUsername = user.userName
