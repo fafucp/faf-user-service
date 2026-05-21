@@ -8,3 +8,4 @@ As of now these are (by default):
 * /config/mail/account-activation.html
 * /config/mail/welcome.html
 * /config/mail/password-reset.html
+* /config/mail/email-change-confirmation.html
