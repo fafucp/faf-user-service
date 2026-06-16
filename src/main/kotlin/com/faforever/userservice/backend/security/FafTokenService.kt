@@ -25,6 +25,7 @@ enum class FafTokenType {
     REGISTRATION,
     PASSWORD_RESET,
     EMAIL_CHANGE,
+    ACCOUNT_DELETION,
     LINK_TO_STEAM,
 }
 

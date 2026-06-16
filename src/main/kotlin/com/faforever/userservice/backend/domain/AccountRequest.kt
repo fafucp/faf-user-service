@@ -34,6 +34,7 @@ data class AccountRequest(
 
 enum class AccountRequestType {
     EMAIL_CHANGE,
+    ACCOUNT_DELETION,
 }
 
 @ApplicationScoped
