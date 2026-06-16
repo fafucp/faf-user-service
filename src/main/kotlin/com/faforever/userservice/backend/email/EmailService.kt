@@ -82,6 +82,26 @@ class EmailService(
         )
     }
 
+    fun sendPasswordChangeConfirmationMail(username: String, email: String, confirmationUrl: String) {
+        val mailBody = mailBodyBuilder.buildPasswordChangeConfirmationBody(username, confirmationUrl)
+        mailSender.sendMail(
+            email,
+            properties.account().passwordChange().subject(),
+            mailBody,
+            ContentType.HTML,
+        )
+    }
+
+    fun sendPasswordChangedNotificationMail(username: String, email: String) {
+        val mailBody = mailBodyBuilder.buildPasswordChangedNotificationBody(username)
+        mailSender.sendMail(
+            email,
+            properties.account().passwordChange().notificationSubject(),
+            mailBody,
+            ContentType.HTML,
+        )
+    }
+
     fun sendEmailAlreadyTakenMail(
         desiredUsername: String,
         existingUsername: String,
