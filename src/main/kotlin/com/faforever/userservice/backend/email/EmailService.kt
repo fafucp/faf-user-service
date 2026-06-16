@@ -101,4 +101,10 @@ class EmailService(
         val mailBody = mailBodyBuilder.buildEmailTakenBody(desiredUsername, existingUsername, passwordResetUrl)
         mailSender.sendMail(email, properties.account().registration().emailTakenSubject(), mailBody, ContentType.HTML)
     }
+
+
+    fun sendAccountDeletionConfirmationMail(username: String, email: String, confirmationUrl: String) {
+        val mailBody = mailBodyBuilder.buildAccountDeletionConfirmationBody(username, confirmationUrl)
+        mailSender.sendMail(email, properties.account().accountDeletion().subject(), mailBody, ContentType.HTML)
+    }
 }
