@@ -97,6 +97,8 @@ interface FafProperties {
 
         fun emailChange(): EmailChange
 
+        fun accountDeletion(): AccountDeletion
+
         fun passwordChange(): PasswordChange
 
         fun username(): Username
@@ -179,6 +181,20 @@ interface FafProperties {
 
             @NotBlank
             fun notificationMailTemplatePath(): String
+        }
+
+        interface AccountDeletion {
+            @WithDefault("3600")
+            fun linkExpirationSeconds(): Long
+
+            @NotBlank
+            fun confirmationUrlFormat(): String
+
+            @NotBlank
+            fun subject(): String
+
+            @NotBlank
+            fun mailTemplatePath(): String
         }
 
         interface Username {
