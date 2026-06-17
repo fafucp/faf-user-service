@@ -24,12 +24,19 @@ sealed interface AccountDeletionRequestResult {
     data object UserNotFound : AccountDeletionRequestResult
 }
 
+sealed interface AccountDeletionValidationResult {
+    data class Valid(val username: String) : AccountDeletionValidationResult
+    data object InvalidToken : AccountDeletionValidationResult
+    data object PendingDeletionNotFound : AccountDeletionValidationResult
+    data object UserNotFound : AccountDeletionValidationResult
+}
+
 sealed interface AccountDeletionConfirmationResult {
     data object Confirmed : AccountDeletionConfirmationResult
     data object InvalidToken : AccountDeletionConfirmationResult
     data object PendingDeletionNotFound : AccountDeletionConfirmationResult
     data object UserNotFound : AccountDeletionConfirmationResult
-    data object AnonymizationNotImplemented : AccountDeletionConfirmationResult
+    data object AnonymizationFailed : AccountDeletionConfirmationResult
 }
 
 @ApplicationScoped
@@ -87,22 +94,68 @@ class AccountDeletionService(
     }
 
     @Transactional
+    fun validateAccountDeletionToken(token: String): AccountDeletionValidationResult {
+        return when (val lookup = findValidPendingDeletion(token)) {
+            AccountDeletionLookup.InvalidToken -> AccountDeletionValidationResult.InvalidToken
+            AccountDeletionLookup.PendingDeletionNotFound -> AccountDeletionValidationResult.PendingDeletionNotFound
+            AccountDeletionLookup.UserNotFound -> AccountDeletionValidationResult.UserNotFound
+            is AccountDeletionLookup.Valid -> AccountDeletionValidationResult.Valid(lookup.user.username)
+        }
+    }
+
+    @Transactional
     fun confirmAccountDeletion(token: String): AccountDeletionConfirmationResult {
-        // TODO: Implement when working on the confirmation part.
-        //
-        // Expected flow:
-        // 1. Parse token using fafTokenService.getTokenClaims(FafTokenType.ACCOUNT_DELETION, token)
-        // 2. Read deletionId and userId from token claims
-        // 3. Find AccountRequest by deletionId
-        // 4. Validate:
-        //    - request type is ACCOUNT_DELETION
-        //    - userId matches
-        //    - token hash matches
-        //    - request is not expired
-        // 5. Show final confirmation page
-        // 6. If user confirms again, call anonymizeUser(userId)
-        // 7. Delete the account_request row
-        return AccountDeletionConfirmationResult.AnonymizationNotImplemented
+        return when (val lookup = findValidPendingDeletion(token)) {
+            AccountDeletionLookup.InvalidToken -> AccountDeletionConfirmationResult.InvalidToken
+            AccountDeletionLookup.PendingDeletionNotFound -> AccountDeletionConfirmationResult.PendingDeletionNotFound
+            AccountDeletionLookup.UserNotFound -> AccountDeletionConfirmationResult.UserNotFound
+            is AccountDeletionLookup.Valid -> {
+                val userId = lookup.user.id ?: return AccountDeletionConfirmationResult.UserNotFound
+
+                try {
+                    anonymizeUser(userId)
+                    accountRequestRepository.delete(lookup.pendingDeletion)
+                    AccountDeletionConfirmationResult.Confirmed
+                } catch (exception: Exception) {
+                    LOG.error("Failed to anonymize account for user id {}", userId, exception)
+                    AccountDeletionConfirmationResult.AnonymizationFailed
+                }
+            }
+        }
+    }
+
+    private fun findValidPendingDeletion(token: String): AccountDeletionLookup {
+        val claims = try {
+            fafTokenService.getTokenClaims(FafTokenType.ACCOUNT_DELETION, token)
+        } catch (exception: Exception) {
+            LOG.info("Unable to extract account deletion token claims", exception)
+            return AccountDeletionLookup.InvalidToken
+        }
+
+        val deletionId = claims[KEY_DELETION_ID]
+        val userId = claims[KEY_USER_ID]?.toIntOrNull()
+        if (deletionId.isNullOrBlank() || userId == null) {
+            return AccountDeletionLookup.InvalidToken
+        }
+
+        val pendingDeletion = accountRequestRepository.findById(deletionId)
+            ?: return AccountDeletionLookup.PendingDeletionNotFound
+
+        if (
+            pendingDeletion.userId != userId ||
+            pendingDeletion.type != AccountRequestType.ACCOUNT_DELETION ||
+            pendingDeletion.tokenHash != hashToken(token) ||
+            pendingDeletion.expiresAt <= OffsetDateTime.now()
+        ) {
+            return AccountDeletionLookup.InvalidToken
+        }
+
+        val user = userRepository.findById(userId)
+            ?: return AccountDeletionLookup.UserNotFound.also {
+                accountRequestRepository.delete(pendingDeletion)
+            }
+
+        return AccountDeletionLookup.Valid(pendingDeletion, user)
     }
 
     private fun anonymizeUser(userId: Int) {
@@ -114,4 +167,11 @@ class AccountDeletionService(
 
     private fun hashToken(token: String): String =
         Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(token.toByteArray()))
+
+    private sealed interface AccountDeletionLookup {
+        data class Valid(val pendingDeletion: AccountRequest, val user: User) : AccountDeletionLookup
+        data object InvalidToken : AccountDeletionLookup
+        data object PendingDeletionNotFound : AccountDeletionLookup
+        data object UserNotFound : AccountDeletionLookup
+    }
 }
