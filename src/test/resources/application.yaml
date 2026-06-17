@@ -8,6 +8,8 @@ faf:
     email-change:
       mail-template-path: src/test/resources/mail/email-change-confirmation.html
       notification-mail-template-path: src/test/resources/mail/email-change-notification.html
+    account-deletion:
+      mail-template-path: ${ACCOUNT_DELETION_MAIL_TEMPLATE_PATH:src/main/mjml/dummy/test-account-deletion-confirmation.html}
     registration:
       activation-mail-template-path: src/test/resources/mail/account-activation.html
       welcome-mail-template-path: src/test/resources/mail/welcome-to-faf.html

@@ -25,7 +25,7 @@ class MailBodyBuilder(private val properties: FafProperties) {
         EMAIL_ALREADY_TAKEN("desiredUsername", "existingUsername", "passwordResetUrl"),
         EMAIL_CHANGE_CONFIRMATION("username", "confirmationUrl"),
         EMAIL_CHANGED_NOTIFICATION("username", "newEmail"),
-        ACCOUNT_DELETION_CONFIRMATION("username", "confirmationUrl")
+        ACCOUNT_DELETION_CONFIRMATION("username", "confirmationUrl"),
         ;
 
         val variables: Set<String>
@@ -168,6 +168,6 @@ class MailBodyBuilder(private val properties: FafProperties) {
             mapOf(
                 "username" to username,
                 "confirmationUrl" to confirmationUrl,
-            )
+            ),
         )
 }
