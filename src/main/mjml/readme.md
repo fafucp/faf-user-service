@@ -10,3 +10,5 @@ As of now these are (by default):
 * /config/mail/password-reset.html
 * /config/mail/email-change-confirmation.html
 * /config/mail/email-change-notification.html
+* /config/mail/password-change-confirmation.html
+* /config/mail/password-change-notification.html
