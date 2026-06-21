@@ -30,6 +30,7 @@ sealed interface PasswordChangeConfirmationResult {
     data object InvalidToken : PasswordChangeConfirmationResult
     data object PendingChangeNotFound : PasswordChangeConfirmationResult
     data object UserNotFound : PasswordChangeConfirmationResult
+    data object PasswordUnchanged : PasswordChangeConfirmationResult
 }
 
 @ApplicationScoped
@@ -115,6 +116,10 @@ class PasswordChangeService(
             ?: return PasswordChangeConfirmationResult.UserNotFound.also {
                 accountRequestRepository.delete(pendingChange)
             }
+
+        if (passwordEncoder.matches(newPassword, user.password)) {
+            return PasswordChangeConfirmationResult.PasswordUnchanged
+        }
 
         user.password = passwordEncoder.encode(newPassword)
         accountRequestRepository.delete(pendingChange)

@@ -114,7 +114,8 @@ class PasswordChangeServiceTest {
     @Test
     fun setPasswordRejectsInvalidToken() {
         val token = "token"
-        whenever(fafTokenService.getTokenClaims(FafTokenType.PASSWORD_CHANGE, token)).thenThrow(IllegalArgumentException())
+        whenever(fafTokenService.getTokenClaims(FafTokenType.PASSWORD_CHANGE, token))
+            .thenThrow(IllegalArgumentException())
 
         val result = passwordChangeService.setPassword(token, "newPassword")
 

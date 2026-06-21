@@ -125,6 +125,8 @@ class UcpConfirmPasswordChangeView(
                 message.text = getTranslation("ucp.changePassword.confirm.notFound")
             PasswordChangeConfirmationResult.UserNotFound ->
                 message.text = getTranslation("ucp.changePassword.confirm.userNotFound")
+            PasswordChangeConfirmationResult.PasswordUnchanged ->
+                message.text = getTranslation("ucp.changePassword.confirm.passwordUnchanged")
         }
     }
 }
