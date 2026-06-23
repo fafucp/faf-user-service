@@ -34,7 +34,6 @@ data class AccountRequest(
 
 enum class AccountRequestType {
     EMAIL_CHANGE,
-    PASSWORD_CHANGE,
 }
 
 @ApplicationScoped

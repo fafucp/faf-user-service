@@ -9,7 +9,6 @@ faf:
       mail-template-path: src/test/resources/mail/email-change-confirmation.html
       notification-mail-template-path: src/test/resources/mail/email-change-notification.html
     password-change:
-      mail-template-path: src/test/resources/mail/password-change-confirmation.html
       notification-mail-template-path: src/test/resources/mail/password-change-notification.html
     registration:
       activation-mail-template-path: src/test/resources/mail/account-activation.html
