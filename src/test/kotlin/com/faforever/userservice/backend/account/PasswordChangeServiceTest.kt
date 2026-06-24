@@ -29,19 +29,20 @@ class PasswordChangeServiceTest {
     @InjectMock
     private lateinit var passwordEncoder: PasswordEncoder
 
+    @InjectMock
+    private lateinit var loginService: LoginService
+
     @Test
     fun changePasswordSuccess() {
         val user = buildTestUser()
         whenever(userRepository.findById(user.id!!)).thenReturn(user)
         whenever(passwordEncoder.matches("currentPassword", user.password)).thenReturn(true)
         whenever(passwordEncoder.matches("newPassword123", user.password)).thenReturn(false)
-        whenever(passwordEncoder.encode("newPassword123")).thenReturn("encodedNewPassword")
 
         val result = passwordChangeService.changePassword(user.id!!, "currentPassword", "newPassword123")
 
         assertThat(result, equalTo(PasswordChangeResult.Success))
-        assertThat(user.password, equalTo("encodedNewPassword"))
-        verify(userRepository).persist(user)
+        verify(loginService).resetPassword(user.id!!, "newPassword123")
         verify(emailService).sendPasswordChangedNotificationMail(user.username, user.email)
     }
 
@@ -54,6 +55,7 @@ class PasswordChangeServiceTest {
         val result = passwordChangeService.changePassword(user.id!!, "wrongPassword", "newPassword123")
 
         assertThat(result, equalTo(PasswordChangeResult.InvalidCurrentPassword))
+        verifyNoInteractions(loginService)
         verifyNoInteractions(emailService)
     }
 
@@ -62,11 +64,11 @@ class PasswordChangeServiceTest {
         val user = buildTestUser()
         whenever(userRepository.findById(user.id!!)).thenReturn(user)
         whenever(passwordEncoder.matches("currentPassword", user.password)).thenReturn(true)
-        whenever(passwordEncoder.matches("currentPassword", user.password)).thenReturn(true)
 
         val result = passwordChangeService.changePassword(user.id!!, "currentPassword", "currentPassword")
 
         assertThat(result, equalTo(PasswordChangeResult.PasswordUnchanged))
+        verifyNoInteractions(loginService)
         verifyNoInteractions(emailService)
     }
 

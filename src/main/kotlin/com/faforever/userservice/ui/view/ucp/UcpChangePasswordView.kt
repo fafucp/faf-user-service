@@ -113,7 +113,7 @@ class UcpChangePasswordView(
                     PasswordChangeResult.InvalidCurrentPassword ->
                         showError(getTranslation("ucp.changePassword.currentPasswordIncorrect"))
                     PasswordChangeResult.PasswordUnchanged ->
-                        showError(getTranslation("ucp.changePassword.confirm.passwordUnchanged"))
+                        showError(getTranslation("ucp.changePassword.passwordUnchanged"))
                 }
             }
         }
