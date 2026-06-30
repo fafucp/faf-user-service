@@ -48,6 +48,12 @@ class AccountDeletionServiceTest {
     @InjectMock
     private lateinit var fafTokenService: FafTokenService
 
+    @InjectMock
+    private lateinit var accountAnonymizationService: AccountAnonymizationService
+
+    @InjectMock
+    private lateinit var accountDeletionEventPublisher: AccountDeletionEventPublisher
+
     @Test
     fun requestAccountDeletionCreatesPendingDeletionAndSendsConfirmation() {
         val user = buildTestUser()
@@ -117,6 +123,11 @@ class AccountDeletionServiceTest {
         val user = buildTestUser()
         val token = "token"
         val pendingDeletion = buildPendingDeletion(user = user, token = token)
+        val event = AccountDeletedEvent(
+            userId = user.id!!,
+            username = user.username,
+            email = user.email,
+        )
         whenever(fafTokenService.getTokenClaims(FafTokenType.ACCOUNT_DELETION, token)).thenReturn(
             mapOf(
                 "deletionId" to pendingDeletion.id,
@@ -125,11 +136,13 @@ class AccountDeletionServiceTest {
         )
         whenever(accountRequestRepository.findById(pendingDeletion.id)).thenReturn(pendingDeletion)
         whenever(userRepository.findById(user.id!!)).thenReturn(user)
+        whenever(accountAnonymizationService.anonymizeUser(user.id!!, pendingDeletion)).thenReturn(event)
 
         val result = accountDeletionService.confirmAccountDeletion(token)
 
         assertThat(result, equalTo(AccountDeletionConfirmationResult.Confirmed))
-        verify(accountRequestRepository).delete(pendingDeletion)
+        verify(accountAnonymizationService).anonymizeUser(user.id!!, pendingDeletion)
+        verify(accountDeletionEventPublisher).publish(event)
     }
 
     @Test
@@ -203,7 +216,7 @@ class AccountDeletionServiceTest {
     }
 
     @Test
-    fun confirmAccountDeletionDeletesPendingDeletionIfUserNoLongerExists() {
+    fun confirmAccountDeletionReturnsUserNotFoundIfUserNoLongerExists() {
         val user = buildTestUser()
         val token = "token"
         val pendingDeletion = buildPendingDeletion(user = user, token = token)
@@ -219,7 +232,8 @@ class AccountDeletionServiceTest {
         val result = accountDeletionService.confirmAccountDeletion(token)
 
         assertThat(result, equalTo(AccountDeletionConfirmationResult.UserNotFound))
-        verify(accountRequestRepository).delete(pendingDeletion)
+        verifyNoInteractions(accountAnonymizationService)
+        verifyNoInteractions(accountDeletionEventPublisher)
     }
 
     private fun buildPendingDeletion(

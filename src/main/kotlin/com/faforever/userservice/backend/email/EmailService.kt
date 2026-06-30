@@ -104,6 +104,21 @@ class EmailService(
 
     fun sendAccountDeletionConfirmationMail(username: String, email: String, confirmationUrl: String) {
         val mailBody = mailBodyBuilder.buildAccountDeletionConfirmationBody(username, confirmationUrl)
-        mailSender.sendMail(email, properties.account().accountDeletion().subject(), mailBody, ContentType.HTML)
+        mailSender.sendMail(
+            email,
+            properties.account().accountDeletion().subject(),
+            mailBody,
+            ContentType.HTML,
+        )
+    }
+
+    fun sendAccountDeletionNotificationMail(username: String, email: String) {
+        val mailBody = mailBodyBuilder.buildAccountDeletionNotificationBody(username)
+        mailSender.sendMail(
+            email,
+            properties.account().accountDeletion().notificationSubject(),
+            mailBody,
+            ContentType.HTML,
+        )
     }
 }
