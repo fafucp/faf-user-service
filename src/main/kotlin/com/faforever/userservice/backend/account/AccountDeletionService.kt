@@ -46,6 +46,8 @@ class AccountDeletionService(
     private val emailService: EmailService,
     private val fafTokenService: FafTokenService,
     private val fafProperties: FafProperties,
+    private val accountAnonymizationService: AccountAnonymizationService,
+    private val accountDeletionEventPublisher: AccountDeletionEventPublisher,
 ) {
     companion object {
         private val LOG: Logger = LoggerFactory.getLogger(AccountDeletionService::class.java)
@@ -55,9 +57,15 @@ class AccountDeletionService(
 
     @Transactional
     fun requestAccountDeletion(userId: Int): AccountDeletionRequestResult {
-        val user = userRepository.findById(userId) ?: return AccountDeletionRequestResult.UserNotFound
+        LOG.info("Account deletion requested for user id {}", userId)
+
+        val user = userRepository.findById(userId)
+            ?: return AccountDeletionRequestResult.UserNotFound.also {
+                LOG.warn("Account deletion request rejected because user id {} was not found", userId)
+            }
 
         createAccountDeletionRequest(user)
+        LOG.info("Account deletion confirmation request created for user id {}", userId)
 
         return AccountDeletionRequestResult.ConfirmationSent
     }
@@ -91,6 +99,11 @@ class AccountDeletionService(
 
         val confirmationUrl = fafProperties.account().accountDeletion().confirmationUrlFormat().format(token)
         emailService.sendAccountDeletionConfirmationMail(user.username, user.email, confirmationUrl)
+        LOG.info(
+            "Account deletion confirmation email queued for user id {} with deletion request id {}",
+            userId,
+            deletionId,
+        )
     }
 
     @Transactional
@@ -103,18 +116,41 @@ class AccountDeletionService(
         }
     }
 
-    @Transactional
     fun confirmAccountDeletion(token: String): AccountDeletionConfirmationResult {
+        LOG.info("Account deletion confirmation received")
+
         return when (val lookup = findValidPendingDeletion(token)) {
-            AccountDeletionLookup.InvalidToken -> AccountDeletionConfirmationResult.InvalidToken
-            AccountDeletionLookup.PendingDeletionNotFound -> AccountDeletionConfirmationResult.PendingDeletionNotFound
-            AccountDeletionLookup.UserNotFound -> AccountDeletionConfirmationResult.UserNotFound
+            AccountDeletionLookup.InvalidToken -> {
+                LOG.warn("Account deletion confirmation rejected because token is invalid")
+                AccountDeletionConfirmationResult.InvalidToken
+            }
+
+            AccountDeletionLookup.PendingDeletionNotFound -> {
+                LOG.warn("Account deletion confirmation rejected because pending deletion was not found")
+                AccountDeletionConfirmationResult.PendingDeletionNotFound
+            }
+
+            AccountDeletionLookup.UserNotFound -> {
+                LOG.warn("Account deletion confirmation rejected because user was not found")
+                AccountDeletionConfirmationResult.UserNotFound
+            }
             is AccountDeletionLookup.Valid -> {
                 val userId = lookup.user.id ?: return AccountDeletionConfirmationResult.UserNotFound
 
                 try {
-                    anonymizeUser(userId)
-                    accountRequestRepository.delete(lookup.pendingDeletion)
+                    LOG.info(
+                        "Confirming account deletion for user id {} with deletion request id {}",
+                        userId,
+                        lookup.pendingDeletion.id,
+                    )
+
+                    val event = accountAnonymizationService.anonymizeUser(userId, lookup.pendingDeletion)
+                    LOG.info(
+                        "Local account anonymization completed for user id {}; publishing account deletion event",
+                        userId,
+                    )
+
+                    accountDeletionEventPublisher.publish(event)
                     AccountDeletionConfirmationResult.Confirmed
                 } catch (exception: Exception) {
                     LOG.error("Failed to anonymize account for user id {}", userId, exception)
@@ -151,22 +187,15 @@ class AccountDeletionService(
         }
 
         val user = userRepository.findById(userId)
-            ?: return AccountDeletionLookup.UserNotFound.also {
-                accountRequestRepository.delete(pendingDeletion)
-            }
+            ?: return AccountDeletionLookup.UserNotFound
 
         return AccountDeletionLookup.Valid(pendingDeletion, user)
     }
 
-    private fun anonymizeUser(userId: Int) {
-        // TODO: Implement later using the FAF-provided anonymisation script/process.
-        // NOTE: Project sheet says to ask for Python script in Zulip chat.
-
-        LOG.warn("Account anonymization is not implemented yet for user id {}", userId)
-    }
-
     private fun hashToken(token: String): String =
-        Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(token.toByteArray()))
+        Base64.getEncoder().encodeToString(
+            MessageDigest.getInstance("SHA-256").digest(token.toByteArray()),
+        )
 
     private sealed interface AccountDeletionLookup {
         data class Valid(val pendingDeletion: AccountRequest, val user: User) : AccountDeletionLookup

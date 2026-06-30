@@ -13,7 +13,6 @@ import java.nio.file.Path
 @Startup
 @Singleton
 class MailBodyBuilder(private val properties: FafProperties) {
-
     companion object {
         private val log: Logger = LoggerFactory.getLogger(MailBodyBuilder::class.java)
     }
@@ -26,7 +25,7 @@ class MailBodyBuilder(private val properties: FafProperties) {
         EMAIL_CHANGE_CONFIRMATION("username", "confirmationUrl"),
         EMAIL_CHANGED_NOTIFICATION("username", "newEmail"),
         ACCOUNT_DELETION_CONFIRMATION("username", "confirmationUrl"),
-        ACCOUNT_DELETION_CONFIRMATION("username", "confirmationUrl")
+        ACCOUNT_DELETION_NOTIFICATION("username"),
         PASSWORD_CHANGED_NOTIFICATION("username"),
         ;
 
@@ -46,6 +45,11 @@ class MailBodyBuilder(private val properties: FafProperties) {
             Template.EMAIL_CHANGE_CONFIRMATION -> properties.account().emailChange().mailTemplatePath()
             Template.EMAIL_CHANGED_NOTIFICATION -> properties.account().emailChange().notificationMailTemplatePath()
             Template.ACCOUNT_DELETION_CONFIRMATION -> properties.account().accountDeletion().mailTemplatePath()
+            Template.ACCOUNT_DELETION_NOTIFICATION ->
+                properties
+                    .account()
+                    .accountDeletion()
+                    .notificationMailTemplatePath()
             Template.PASSWORD_CHANGED_NOTIFICATION ->
                 properties.account().passwordChange().notificationMailTemplatePath()
         }
@@ -180,6 +184,14 @@ class MailBodyBuilder(private val properties: FafProperties) {
             mapOf(
                 "username" to username,
                 "confirmationUrl" to confirmationUrl,
+            ),
+        )
+
+    fun buildAccountDeletionNotificationBody(username: String) =
+        populate(
+            Template.ACCOUNT_DELETION_NOTIFICATION,
+            mapOf(
+                "username" to username,
             ),
         )
 }
