@@ -3,6 +3,7 @@ package com.faforever.userservice.ui.view.ucp
 import com.faforever.userservice.backend.account.AccountDeletionConfirmationResult
 import com.faforever.userservice.backend.account.AccountDeletionService
 import com.faforever.userservice.backend.account.AccountDeletionValidationResult
+import com.faforever.userservice.backend.ucp.UcpSessionService
 import com.faforever.userservice.ui.component.FafLogo
 import com.faforever.userservice.ui.component.SocialIcons
 import com.faforever.userservice.ui.layout.CardLayout
@@ -26,6 +27,7 @@ import com.vaadin.flow.server.auth.AnonymousAllowed
 @AnonymousAllowed
 class UcpConfirmAccountDeletionView(
     private val accountDeletionService: AccountDeletionService,
+    private val ucpSessionService: UcpSessionService,
 ) : CompactVerticalLayout(), BeforeEnterObserver {
 
     private val title = H2(getTranslation("ucp.deleteAccount.confirm.title"))
@@ -145,5 +147,11 @@ class UcpConfirmAccountDeletionView(
         acknowledgement.isVisible = false
         confirmButton.isVisible = false
         loginButton.isVisible = true
+
+        if (result == AccountDeletionConfirmationResult.Confirmed) {
+            ucpSessionService.logout()
+            ui.ifPresent { it.page.setLocation("/ucp/login") }
+            return
+        }
     }
 }

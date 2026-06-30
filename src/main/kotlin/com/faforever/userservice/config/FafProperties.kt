@@ -41,6 +41,32 @@ interface FafProperties {
 
     fun steam(): Steam
 
+    fun nodebb(): Nodebb
+
+    fun wikijs(): WikiJs
+
+    interface Nodebb {
+        @NotBlank
+        fun readApiUrl(): String
+
+        @NotBlank
+        fun writeApiUrl(): String
+
+        @NotBlank
+        fun adminToken(): String
+    }
+
+    interface WikiJs {
+        @NotBlank
+        fun graphqlUrl(): String
+
+        @NotBlank
+        fun token(): String
+
+        @WithDefault("42")
+        fun replaceUserId(): Int
+    }
+
     interface CloudflareHmacConfig {
         @NotBlank
         fun secret(): String
@@ -175,6 +201,9 @@ interface FafProperties {
             @WithDefault("3600")
             fun linkExpirationSeconds(): Long
 
+            @WithDefault("true")
+            fun externalConsumersEnabled(): Boolean
+
             @NotBlank
             fun confirmationUrlFormat(): String
 
@@ -183,6 +212,12 @@ interface FafProperties {
 
             @NotBlank
             fun mailTemplatePath(): String
+
+            @NotBlank
+            fun notificationSubject(): String
+
+            @NotBlank
+            fun notificationMailTemplatePath(): String
         }
 
         interface Username {
