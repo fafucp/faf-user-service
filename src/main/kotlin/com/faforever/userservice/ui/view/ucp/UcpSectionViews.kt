@@ -8,10 +8,6 @@ import jakarta.annotation.security.PermitAll
 @PermitAll
 class UcpChangePasswordView : UcpPlaceholderView("ucp.nav.changePassword")
 
-@Route(value = "/ucp/linking", layout = UcpLayout::class)
-@PermitAll
-class UcpAccountLinkingView : UcpPlaceholderView("ucp.nav.accountLinking")
-
 @Route(value = "/ucp/friends-foes", layout = UcpLayout::class)
 @PermitAll
 class UcpFriendsFoesView : UcpPlaceholderView("ucp.nav.friendsFoes")
