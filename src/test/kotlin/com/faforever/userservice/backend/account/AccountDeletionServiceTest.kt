@@ -14,18 +14,14 @@ import io.quarkus.test.junit.QuarkusTest
 import jakarta.inject.Inject
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.equalTo
-import org.hamcrest.Matchers.notNullValue
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
-import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
-import java.security.MessageDigest
 import java.time.OffsetDateTime
 import java.time.temporal.TemporalAmount
-import java.util.Base64
 
 @QuarkusTest
 class AccountDeletionServiceTest {
@@ -55,7 +51,7 @@ class AccountDeletionServiceTest {
     private lateinit var accountDeletionEventPublisher: AccountDeletionEventPublisher
 
     @Test
-    fun requestAccountDeletionCreatesPendingDeletionAndSendsConfirmation() {
+    fun requestAccountDeletionCreatesTokenAndSendsConfirmationEmail() {
         val user = buildTestUser()
         val token = "token"
         whenever(userRepository.findById(user.id!!)).thenReturn(user)
@@ -63,22 +59,18 @@ class AccountDeletionServiceTest {
             fafTokenService.createToken(
                 eq(FafTokenType.ACCOUNT_DELETION),
                 any<TemporalAmount>(),
-                any(),
+                eq(mapOf("userId" to user.id.toString())),
             ),
         ).thenReturn(token)
 
         val result = accountDeletionService.requestAccountDeletion(user.id!!)
 
         assertThat(result, equalTo(AccountDeletionRequestResult.ConfirmationSent))
-        verify(accountRequestRepository).deleteByUserIdAndType(user.id!!, AccountRequestType.ACCOUNT_DELETION)
-        argumentCaptor<AccountRequest>().apply {
-            verify(accountRequestRepository).persist(capture())
-            assertThat(firstValue.id, notNullValue())
-            assertThat(firstValue.userId, equalTo(user.id))
-            assertThat(firstValue.type, equalTo(AccountRequestType.ACCOUNT_DELETION))
-            assertThat(firstValue.tokenHash, equalTo(hashToken(token)))
-            assertThat(firstValue.data, equalTo(emptyMap()))
-        }
+        verify(fafTokenService).createToken(
+            eq(FafTokenType.ACCOUNT_DELETION),
+            any<TemporalAmount>(),
+            eq(mapOf("userId" to user.id.toString())),
+        )
         verify(emailService).sendAccountDeletionConfirmationMail(
             user.username,
             user.email,
@@ -103,149 +95,178 @@ class AccountDeletionServiceTest {
     fun validateAccountDeletionTokenReturnsValidUsername() {
         val user = buildTestUser()
         val token = "token"
-        val pendingDeletion = buildPendingDeletion(user = user, token = token)
-        whenever(fafTokenService.getTokenClaims(FafTokenType.ACCOUNT_DELETION, token)).thenReturn(
-            mapOf(
-                "deletionId" to pendingDeletion.id,
-                "userId" to user.id.toString(),
-            ),
-        )
-        whenever(accountRequestRepository.findById(pendingDeletion.id)).thenReturn(pendingDeletion)
+        val pendingDeletion = buildPendingDeletion(user = user, id = token)
+        whenever(accountRequestRepository.findById(token)).thenReturn(pendingDeletion)
         whenever(userRepository.findById(user.id!!)).thenReturn(user)
 
         val result = accountDeletionService.validateAccountDeletionToken(token)
 
         assertThat(result, equalTo(AccountDeletionValidationResult.Valid(user.username)))
+        verifyNoInteractions(fafTokenService)
+        verifyNoInteractions(accountAnonymizationService)
+        verifyNoInteractions(accountDeletionEventPublisher)
     }
 
     @Test
-    fun confirmAccountDeletionDeletesPendingDeletion() {
+    fun validateAccountDeletionTokenReturnsPendingDeletionNotFound() {
+        val token = "token"
+        whenever(accountRequestRepository.findById(token)).thenReturn(null)
+
+        val result = accountDeletionService.validateAccountDeletionToken(token)
+
+        assertThat(result, equalTo(AccountDeletionValidationResult.PendingDeletionNotFound))
+        verifyNoInteractions(fafTokenService)
+        verifyNoInteractions(accountAnonymizationService)
+        verifyNoInteractions(accountDeletionEventPublisher)
+    }
+
+    @Test
+    fun validateAccountDeletionTokenRejectsWrongRequestType() {
         val user = buildTestUser()
         val token = "token"
-        val pendingDeletion = buildPendingDeletion(user = user, token = token)
+        val pendingDeletion = buildPendingDeletion(
+            user = user,
+            id = token,
+            type = AccountRequestType.EMAIL_CHANGE,
+        )
+        whenever(accountRequestRepository.findById(token)).thenReturn(pendingDeletion)
+
+        val result = accountDeletionService.validateAccountDeletionToken(token)
+
+        assertThat(result, equalTo(AccountDeletionValidationResult.InvalidToken))
+        verifyNoInteractions(fafTokenService)
+        verifyNoInteractions(accountAnonymizationService)
+        verifyNoInteractions(accountDeletionEventPublisher)
+    }
+
+    @Test
+    fun validateAccountDeletionTokenRejectsExpiredPendingDeletion() {
+        val user = buildTestUser()
+        val token = "token"
+        val pendingDeletion = buildPendingDeletion(
+            user = user,
+            id = token,
+            expiresAt = OffsetDateTime.now().minusMinutes(1),
+        )
+        whenever(accountRequestRepository.findById(token)).thenReturn(pendingDeletion)
+
+        val result = accountDeletionService.validateAccountDeletionToken(token)
+
+        assertThat(result, equalTo(AccountDeletionValidationResult.InvalidToken))
+        verifyNoInteractions(fafTokenService)
+        verifyNoInteractions(accountAnonymizationService)
+        verifyNoInteractions(accountDeletionEventPublisher)
+    }
+
+    @Test
+    fun validateAccountDeletionTokenReturnsUserNotFoundIfUserNoLongerExists() {
+        val user = buildTestUser()
+        val token = "token"
+        val pendingDeletion = buildPendingDeletion(user = user, id = token)
+        whenever(accountRequestRepository.findById(token)).thenReturn(pendingDeletion)
+        whenever(userRepository.findById(user.id!!)).thenReturn(null)
+
+        val result = accountDeletionService.validateAccountDeletionToken(token)
+
+        assertThat(result, equalTo(AccountDeletionValidationResult.UserNotFound))
+        verifyNoInteractions(fafTokenService)
+        verifyNoInteractions(accountAnonymizationService)
+        verifyNoInteractions(accountDeletionEventPublisher)
+    }
+
+    @Test
+    fun confirmAccountDeletionConsumesTokenAnonymizesAccountAndPublishesEvent() {
+        val user = buildTestUser()
+        val token = "token"
         val event = AccountDeletedEvent(
             userId = user.id!!,
             username = user.username,
             email = user.email,
         )
-        whenever(fafTokenService.getTokenClaims(FafTokenType.ACCOUNT_DELETION, token)).thenReturn(
-            mapOf(
-                "deletionId" to pendingDeletion.id,
-                "userId" to user.id.toString(),
-            ),
-        )
-        whenever(accountRequestRepository.findById(pendingDeletion.id)).thenReturn(pendingDeletion)
+        whenever(fafTokenService.consumeToken(FafTokenType.ACCOUNT_DELETION, token))
+            .thenReturn(mapOf("userId" to user.id.toString()))
         whenever(userRepository.findById(user.id!!)).thenReturn(user)
-        whenever(accountAnonymizationService.anonymizeUser(user.id!!, pendingDeletion)).thenReturn(event)
+        whenever(accountAnonymizationService.anonymizeUser(user.id!!)).thenReturn(event)
 
         val result = accountDeletionService.confirmAccountDeletion(token)
 
         assertThat(result, equalTo(AccountDeletionConfirmationResult.Confirmed))
-        verify(accountAnonymizationService).anonymizeUser(user.id!!, pendingDeletion)
+        verify(fafTokenService).consumeToken(FafTokenType.ACCOUNT_DELETION, token)
+        verify(accountAnonymizationService).anonymizeUser(user.id!!)
         verify(accountDeletionEventPublisher).publish(event)
     }
 
     @Test
-    fun confirmAccountDeletionRejectsInvalidToken() {
+    fun confirmAccountDeletionRejectsInvalidTokenWhenTokenConsumptionFails() {
         val token = "token"
-        whenever(fafTokenService.getTokenClaims(FafTokenType.ACCOUNT_DELETION, token))
-            .thenThrow(IllegalArgumentException())
+        whenever(fafTokenService.consumeToken(FafTokenType.ACCOUNT_DELETION, token))
+            .thenThrow(IllegalArgumentException("Token not found"))
 
         val result = accountDeletionService.confirmAccountDeletion(token)
 
         assertThat(result, equalTo(AccountDeletionConfirmationResult.InvalidToken))
-        verifyNoInteractions(accountRequestRepository)
+        verify(fafTokenService).consumeToken(FafTokenType.ACCOUNT_DELETION, token)
+        verifyNoInteractions(accountAnonymizationService)
+        verifyNoInteractions(accountDeletionEventPublisher)
     }
 
     @Test
-    fun confirmAccountDeletionReturnsPendingDeletionNotFound() {
-        val user = buildTestUser()
+    fun confirmAccountDeletionRejectsTokenWithoutValidUserId() {
         val token = "token"
-        val deletionId = "deletion-id"
-        whenever(fafTokenService.getTokenClaims(FafTokenType.ACCOUNT_DELETION, token)).thenReturn(
-            mapOf(
-                "deletionId" to deletionId,
-                "userId" to user.id.toString(),
-            ),
-        )
-        whenever(accountRequestRepository.findById(deletionId)).thenReturn(null)
-
-        val result = accountDeletionService.confirmAccountDeletion(token)
-
-        assertThat(result, equalTo(AccountDeletionConfirmationResult.PendingDeletionNotFound))
-    }
-
-    @Test
-    fun confirmAccountDeletionRejectsWrongTokenHash() {
-        val user = buildTestUser()
-        val token = "token"
-        val pendingDeletion = buildPendingDeletion(user = user, token = "different-token")
-        whenever(fafTokenService.getTokenClaims(FafTokenType.ACCOUNT_DELETION, token)).thenReturn(
-            mapOf(
-                "deletionId" to pendingDeletion.id,
-                "userId" to user.id.toString(),
-            ),
-        )
-        whenever(accountRequestRepository.findById(pendingDeletion.id)).thenReturn(pendingDeletion)
+        whenever(fafTokenService.consumeToken(FafTokenType.ACCOUNT_DELETION, token))
+            .thenReturn(emptyMap())
 
         val result = accountDeletionService.confirmAccountDeletion(token)
 
         assertThat(result, equalTo(AccountDeletionConfirmationResult.InvalidToken))
-    }
-
-    @Test
-    fun confirmAccountDeletionRejectsExpiredPendingDeletion() {
-        val user = buildTestUser()
-        val token = "token"
-        val pendingDeletion = buildPendingDeletion(
-            user = user,
-            token = token,
-            expiresAt = OffsetDateTime.now().minusMinutes(1),
-        )
-        whenever(fafTokenService.getTokenClaims(FafTokenType.ACCOUNT_DELETION, token)).thenReturn(
-            mapOf(
-                "deletionId" to pendingDeletion.id,
-                "userId" to user.id.toString(),
-            ),
-        )
-        whenever(accountRequestRepository.findById(pendingDeletion.id)).thenReturn(pendingDeletion)
-
-        val result = accountDeletionService.confirmAccountDeletion(token)
-
-        assertThat(result, equalTo(AccountDeletionConfirmationResult.InvalidToken))
+        verify(fafTokenService).consumeToken(FafTokenType.ACCOUNT_DELETION, token)
+        verifyNoInteractions(accountAnonymizationService)
+        verifyNoInteractions(accountDeletionEventPublisher)
     }
 
     @Test
     fun confirmAccountDeletionReturnsUserNotFoundIfUserNoLongerExists() {
         val user = buildTestUser()
         val token = "token"
-        val pendingDeletion = buildPendingDeletion(user = user, token = token)
-        whenever(fafTokenService.getTokenClaims(FafTokenType.ACCOUNT_DELETION, token)).thenReturn(
-            mapOf(
-                "deletionId" to pendingDeletion.id,
-                "userId" to user.id.toString(),
-            ),
-        )
-        whenever(accountRequestRepository.findById(pendingDeletion.id)).thenReturn(pendingDeletion)
+        whenever(fafTokenService.consumeToken(FafTokenType.ACCOUNT_DELETION, token))
+            .thenReturn(mapOf("userId" to user.id.toString()))
         whenever(userRepository.findById(user.id!!)).thenReturn(null)
 
         val result = accountDeletionService.confirmAccountDeletion(token)
 
         assertThat(result, equalTo(AccountDeletionConfirmationResult.UserNotFound))
+        verify(fafTokenService).consumeToken(FafTokenType.ACCOUNT_DELETION, token)
         verifyNoInteractions(accountAnonymizationService)
+        verifyNoInteractions(accountDeletionEventPublisher)
+    }
+
+    @Test
+    fun confirmAccountDeletionReturnsAnonymizationFailedWhenAnonymizationFails() {
+        val user = buildTestUser()
+        val token = "token"
+        whenever(fafTokenService.consumeToken(FafTokenType.ACCOUNT_DELETION, token))
+            .thenReturn(mapOf("userId" to user.id.toString()))
+        whenever(userRepository.findById(user.id!!)).thenReturn(user)
+        whenever(accountAnonymizationService.anonymizeUser(user.id!!))
+            .thenThrow(RuntimeException("anonymization failed"))
+
+        val result = accountDeletionService.confirmAccountDeletion(token)
+
+        assertThat(result, equalTo(AccountDeletionConfirmationResult.AnonymizationFailed))
+        verify(fafTokenService).consumeToken(FafTokenType.ACCOUNT_DELETION, token)
+        verify(accountAnonymizationService).anonymizeUser(user.id!!)
         verifyNoInteractions(accountDeletionEventPublisher)
     }
 
     private fun buildPendingDeletion(
         user: User,
-        token: String,
         id: String = "deletion-id",
+        type: AccountRequestType = AccountRequestType.ACCOUNT_DELETION,
         expiresAt: OffsetDateTime = OffsetDateTime.now().plusHours(1),
     ) = AccountRequest(
         id = id,
         userId = user.id!!,
-        type = AccountRequestType.ACCOUNT_DELETION,
-        tokenHash = hashToken(token),
+        type = type,
         expiresAt = expiresAt,
         data = emptyMap(),
     )
@@ -262,7 +283,4 @@ class AccountDeletionServiceTest {
         ip = null,
         acceptedTos = null,
     )
-
-    private fun hashToken(token: String): String =
-        Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(token.toByteArray()))
 }

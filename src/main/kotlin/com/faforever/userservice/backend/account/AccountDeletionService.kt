@@ -13,11 +13,8 @@ import jakarta.enterprise.context.ApplicationScoped
 import jakarta.transaction.Transactional
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import java.security.MessageDigest
 import java.time.Duration
 import java.time.OffsetDateTime
-import java.util.Base64
-import java.util.UUID
 
 sealed interface AccountDeletionRequestResult {
     data object ConfirmationSent : AccountDeletionRequestResult
@@ -51,7 +48,6 @@ class AccountDeletionService(
 ) {
     companion object {
         private val LOG: Logger = LoggerFactory.getLogger(AccountDeletionService::class.java)
-        private const val KEY_DELETION_ID = "deletionId"
         private const val KEY_USER_ID = "userId"
     }
 
@@ -72,38 +68,17 @@ class AccountDeletionService(
 
     private fun createAccountDeletionRequest(user: User) {
         val userId = user.id ?: error("Cannot request account deletion for a user without an id")
-        val deletionId = UUID.randomUUID().toString()
         val lifetime = Duration.ofSeconds(fafProperties.account().accountDeletion().linkExpirationSeconds())
-        val expiresAt = OffsetDateTime.now().plus(lifetime)
 
         val token = fafTokenService.createToken(
             FafTokenType.ACCOUNT_DELETION,
             lifetime,
-            mapOf(
-                KEY_DELETION_ID to deletionId,
-                KEY_USER_ID to userId.toString(),
-            ),
-        )
-
-        accountRequestRepository.deleteByUserIdAndType(userId, AccountRequestType.ACCOUNT_DELETION)
-        accountRequestRepository.persist(
-            AccountRequest(
-                id = deletionId,
-                userId = userId,
-                type = AccountRequestType.ACCOUNT_DELETION,
-                tokenHash = hashToken(token),
-                expiresAt = expiresAt,
-                data = emptyMap(),
-            ),
+            mapOf(KEY_USER_ID to userId.toString()),
         )
 
         val confirmationUrl = fafProperties.account().accountDeletion().confirmationUrlFormat().format(token)
         emailService.sendAccountDeletionConfirmationMail(user.username, user.email, confirmationUrl)
-        LOG.info(
-            "Account deletion confirmation email queued for user id {} with deletion request id {}",
-            userId,
-            deletionId,
-        )
+        LOG.info("Account deletion confirmation email queued for user id {}", userId)
     }
 
     @Transactional
@@ -116,86 +91,60 @@ class AccountDeletionService(
         }
     }
 
+    @Transactional
     fun confirmAccountDeletion(token: String): AccountDeletionConfirmationResult {
         LOG.info("Account deletion confirmation received")
 
-        return when (val lookup = findValidPendingDeletion(token)) {
-            AccountDeletionLookup.InvalidToken -> {
-                LOG.warn("Account deletion confirmation rejected because token is invalid")
-                AccountDeletionConfirmationResult.InvalidToken
-            }
+        val claims = try {
+            fafTokenService.consumeToken(FafTokenType.ACCOUNT_DELETION, token)
+        } catch (exception: Exception) {
+            LOG.info("Unable to consume account deletion token", exception)
+            return AccountDeletionConfirmationResult.InvalidToken
+        }
 
-            AccountDeletionLookup.PendingDeletionNotFound -> {
-                LOG.warn("Account deletion confirmation rejected because pending deletion was not found")
-                AccountDeletionConfirmationResult.PendingDeletionNotFound
-            }
+        val userId = claims[KEY_USER_ID]?.toIntOrNull()
+            ?: return AccountDeletionConfirmationResult.InvalidToken
 
-            AccountDeletionLookup.UserNotFound -> {
-                LOG.warn("Account deletion confirmation rejected because user was not found")
-                AccountDeletionConfirmationResult.UserNotFound
-            }
-            is AccountDeletionLookup.Valid -> {
-                val userId = lookup.user.id ?: return AccountDeletionConfirmationResult.UserNotFound
+        val user = userRepository.findById(userId)
+            ?: return AccountDeletionConfirmationResult.UserNotFound
 
-                try {
-                    LOG.info(
-                        "Confirming account deletion for user id {} with deletion request id {}",
-                        userId,
-                        lookup.pendingDeletion.id,
-                    )
+        try {
+            LOG.info("Confirming account deletion for user id {}", user.id)
 
-                    val event = accountAnonymizationService.anonymizeUser(userId, lookup.pendingDeletion)
-                    LOG.info(
-                        "Local account anonymization completed for user id {}; publishing account deletion event",
-                        userId,
-                    )
+            val event = accountAnonymizationService.anonymizeUser(userId)
+            LOG.info(
+                "Local account anonymization completed for user id {}; publishing account deletion event",
+                userId,
+            )
 
-                    accountDeletionEventPublisher.publish(event)
-                    AccountDeletionConfirmationResult.Confirmed
-                } catch (exception: Exception) {
-                    LOG.error("Failed to anonymize account for user id {}", userId, exception)
-                    AccountDeletionConfirmationResult.AnonymizationFailed
-                }
-            }
+            accountDeletionEventPublisher.publish(event)
+            return AccountDeletionConfirmationResult.Confirmed
+        } catch (exception: Exception) {
+            LOG.error("Failed to anonymize account for user id {}", userId, exception)
+            return AccountDeletionConfirmationResult.AnonymizationFailed
         }
     }
 
     private fun findValidPendingDeletion(token: String): AccountDeletionLookup {
-        val claims = try {
-            fafTokenService.getTokenClaims(FafTokenType.ACCOUNT_DELETION, token)
-        } catch (exception: Exception) {
-            LOG.info("Unable to extract account deletion token claims", exception)
-            return AccountDeletionLookup.InvalidToken
-        }
-
-        val deletionId = claims[KEY_DELETION_ID]
-        val userId = claims[KEY_USER_ID]?.toIntOrNull()
-        if (deletionId.isNullOrBlank() || userId == null) {
-            return AccountDeletionLookup.InvalidToken
-        }
-
-        val pendingDeletion = accountRequestRepository.findById(deletionId)
+        val pendingDeletion = accountRequestRepository.findById(token)
             ?: return AccountDeletionLookup.PendingDeletionNotFound
 
-        if (
-            pendingDeletion.userId != userId ||
-            pendingDeletion.type != AccountRequestType.ACCOUNT_DELETION ||
-            pendingDeletion.tokenHash != hashToken(token) ||
-            pendingDeletion.expiresAt <= OffsetDateTime.now()
-        ) {
+        if (pendingDeletion.type != AccountRequestType.ACCOUNT_DELETION) {
             return AccountDeletionLookup.InvalidToken
         }
+
+        if (pendingDeletion.expiresAt.isBefore(OffsetDateTime.now())) {
+            return AccountDeletionLookup.InvalidToken
+        }
+
+        val userId = pendingDeletion.userId
+            ?: return AccountDeletionLookup.InvalidToken
 
         val user = userRepository.findById(userId)
             ?: return AccountDeletionLookup.UserNotFound
 
         return AccountDeletionLookup.Valid(pendingDeletion, user)
     }
-
-    private fun hashToken(token: String): String =
-        Base64.getEncoder().encodeToString(
-            MessageDigest.getInstance("SHA-256").digest(token.toByteArray()),
-        )
 
     private sealed interface AccountDeletionLookup {
         data class Valid(val pendingDeletion: AccountRequest, val user: User) : AccountDeletionLookup
