@@ -1,33 +1,24 @@
 package com.faforever.userservice.backend.account
 
-import com.faforever.userservice.backend.domain.AccountRequest
-import com.faforever.userservice.backend.domain.AccountRequestRepository
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.persistence.EntityManager
 import jakarta.transaction.Transactional
 import org.slf4j.LoggerFactory
 
 interface AccountAnonymizationService {
-    fun anonymizeUser(
-        userId: Int,
-        pendingDeletion: AccountRequest,
-    ): AccountDeletedEvent
+    fun anonymizeUser(userId: Int): AccountDeletedEvent
 }
 
 @ApplicationScoped
 class DatabaseAccountAnonymizationService(
     private val entityManager: EntityManager,
-    private val accountRequestRepository: AccountRequestRepository,
 ) : AccountAnonymizationService {
     companion object {
         private val LOG = LoggerFactory.getLogger(DatabaseAccountAnonymizationService::class.java)
     }
 
     @Transactional
-    override fun anonymizeUser(
-        userId: Int,
-        pendingDeletion: AccountRequest,
-    ): AccountDeletedEvent {
+    override fun anonymizeUser(userId: Int): AccountDeletedEvent {
         val target = findTarget(userId)
             ?: throw AccountAnonymizationUserNotFoundException(userId)
 
@@ -41,13 +32,6 @@ class DatabaseAccountAnonymizationService(
         if (target.bans > 0) {
             LOG.warn("Anonymizing user id {} with {} ban history entries", userId, target.bans)
         }
-
-        accountRequestRepository.delete(pendingDeletion)
-        LOG.info(
-            "Deleted pending account deletion request {} for user id {}",
-            pendingDeletion.id,
-            userId,
-        )
 
         deleteLoginLogs(userId)
         deleteNameHistory(userId)

@@ -149,7 +149,7 @@ class UcpConfirmAccountDeletionView(
         loginButton.isVisible = true
 
         if (result == AccountDeletionConfirmationResult.Confirmed) {
-            ucpSessionService.logout()
+            ucpSessionService.clear()
             ui.ifPresent { it.page.setLocation("/ucp/login") }
             return
         }

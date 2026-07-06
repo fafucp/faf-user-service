@@ -1,8 +1,5 @@
 package com.faforever.userservice.backend.account
 
-import com.faforever.userservice.backend.domain.AccountRequest
-import com.faforever.userservice.backend.domain.AccountRequestRepository
-import com.faforever.userservice.backend.domain.AccountRequestType
 import jakarta.persistence.EntityManager
 import jakarta.persistence.Query
 import org.hamcrest.MatcherAssert.assertThat
@@ -13,9 +10,7 @@ import org.hamcrest.Matchers.not
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
-import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
-import java.time.OffsetDateTime
 
 class AccountAnonymizationServiceTest {
 
@@ -26,12 +21,10 @@ class AccountAnonymizationServiceTest {
     }
 
     private val entityManager: EntityManager = mock()
-    private val accountRequestRepository: AccountRequestRepository = mock()
     private val createdSql = mutableListOf<String>()
 
     private val service = DatabaseAccountAnonymizationService(
         entityManager = entityManager,
-        accountRequestRepository = accountRequestRepository,
     )
 
     @Test
@@ -40,18 +33,20 @@ class AccountAnonymizationServiceTest {
             games = 5,
             bans = 0,
         )
-        val pendingDeletion = buildPendingDeletion()
 
-        val event = service.anonymizeUser(USER_ID, pendingDeletion)
+        val event = service.anonymizeUser(USER_ID)
 
         assertThat(event.userId, equalTo(USER_ID))
         assertThat(event.username, equalTo(USERNAME))
         assertThat(event.email, equalTo(EMAIL))
 
-        verify(accountRequestRepository).delete(pendingDeletion)
-
+        assertThat(createdSql, hasItem(containsString("DELETE FROM login_log")))
+        assertThat(createdSql, hasItem(containsString("DELETE FROM name_history")))
+        assertThat(createdSql, hasItem(containsString("DELETE FROM unique_id_users")))
         assertThat(createdSql, hasItem(containsString("UPDATE login")))
         assertThat(createdSql, hasItem(containsString("UPDATE service_links")))
+        assertThat(createdSql, not(hasItem(containsString("DELETE FROM service_links"))))
+        assertThat(createdSql, not(hasItem(containsString("DELETE FROM leaderboard_rating"))))
         assertThat(createdSql, not(hasItem(equalTo("DELETE FROM login WHERE id = :userId"))))
     }
 
@@ -61,19 +56,19 @@ class AccountAnonymizationServiceTest {
             games = 0,
             bans = 0,
         )
-        val pendingDeletion = buildPendingDeletion()
 
-        val event = service.anonymizeUser(USER_ID, pendingDeletion)
+        val event = service.anonymizeUser(USER_ID)
 
         assertThat(event.userId, equalTo(USER_ID))
         assertThat(event.username, equalTo(USERNAME))
         assertThat(event.email, equalTo(EMAIL))
 
-        verify(accountRequestRepository).delete(pendingDeletion)
-
+        assertThat(createdSql, hasItem(containsString("DELETE FROM login_log")))
+        assertThat(createdSql, hasItem(containsString("DELETE FROM name_history")))
+        assertThat(createdSql, hasItem(containsString("DELETE FROM unique_id_users")))
+        assertThat(createdSql, hasItem(containsString("UPDATE login")))
         assertThat(createdSql, hasItem(containsString("DELETE FROM service_links")))
         assertThat(createdSql, hasItem(containsString("DELETE FROM leaderboard_rating")))
-        assertThat(createdSql, hasItem(containsString("UPDATE login")))
         assertThat(createdSql, not(hasItem(containsString("DELETE FROM login WHERE id = :userId"))))
     }
 
@@ -83,23 +78,22 @@ class AccountAnonymizationServiceTest {
             games = 5,
             bans = 2,
         )
-        val pendingDeletion = buildPendingDeletion()
 
-        val event = service.anonymizeUser(USER_ID, pendingDeletion)
+        val event = service.anonymizeUser(USER_ID)
 
         assertThat(event.userId, equalTo(USER_ID))
+        assertThat(event.username, equalTo(USERNAME))
+        assertThat(event.email, equalTo(EMAIL))
 
-        verify(accountRequestRepository).delete(pendingDeletion)
         assertThat(createdSql, hasItem(containsString("UPDATE login")))
     }
 
     @Test
     fun anonymizeUserThrowsWhenUserDoesNotExist() {
         setupNativeQueryMocksForMissingUser()
-        val pendingDeletion = buildPendingDeletion()
 
         try {
-            service.anonymizeUser(USER_ID, pendingDeletion)
+            service.anonymizeUser(USER_ID)
         } catch (exception: AccountAnonymizationUserNotFoundException) {
             assertThat(exception.message, containsString("user id $USER_ID"))
             return
@@ -162,13 +156,4 @@ class AccountAnonymizationServiceTest {
         whenever(query.executeUpdate()).thenReturn(1)
         return query
     }
-
-    private fun buildPendingDeletion() = AccountRequest(
-        id = "deletion-id",
-        userId = USER_ID,
-        type = AccountRequestType.ACCOUNT_DELETION,
-        tokenHash = "hash",
-        expiresAt = OffsetDateTime.now().plusHours(1),
-        data = emptyMap(),
-    )
 }
