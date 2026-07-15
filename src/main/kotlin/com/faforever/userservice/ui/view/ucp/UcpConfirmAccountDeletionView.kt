@@ -2,7 +2,6 @@ package com.faforever.userservice.ui.view.ucp
 
 import com.faforever.userservice.backend.account.AccountDeletionConfirmationResult
 import com.faforever.userservice.backend.account.AccountDeletionService
-import com.faforever.userservice.backend.account.AccountDeletionValidationResult
 import com.faforever.userservice.backend.ucp.UcpSessionService
 import com.faforever.userservice.ui.component.FafLogo
 import com.faforever.userservice.ui.component.SocialIcons
@@ -77,29 +76,15 @@ class UcpConfirmAccountDeletionView(
     override fun beforeEnter(event: BeforeEnterEvent) {
         token = event.location.queryParameters.parameters["token"]?.firstOrNull()
 
-        val tokenValue = token
-        val validationResult = if (tokenValue.isNullOrBlank()) {
-            AccountDeletionValidationResult.InvalidToken
+        if (token.isNullOrBlank()) {
+            showInvalidResult(getTranslation("ucp.deleteAccount.confirm.invalidToken"))
         } else {
-            accountDeletionService.validateAccountDeletionToken(tokenValue)
-        }
-
-        when (validationResult) {
-            is AccountDeletionValidationResult.Valid -> showValidConfirmation(validationResult.username)
-            AccountDeletionValidationResult.InvalidToken -> showInvalidResult(
-                getTranslation("ucp.deleteAccount.confirm.invalidToken"),
-            )
-            AccountDeletionValidationResult.PendingDeletionNotFound -> showInvalidResult(
-                getTranslation("ucp.deleteAccount.confirm.notFound"),
-            )
-            AccountDeletionValidationResult.UserNotFound -> showInvalidResult(
-                getTranslation("ucp.deleteAccount.confirm.userNotFound"),
-            )
+            showConfirmation()
         }
     }
 
-    private fun showValidConfirmation(username: String) {
-        message.text = getTranslation("ucp.deleteAccount.confirm.message", username)
+    private fun showConfirmation() {
+        message.text = getTranslation("ucp.deleteAccount.confirm.message")
         finalWarning.isVisible = true
         acknowledgement.isVisible = true
         confirmButton.isVisible = true
@@ -136,9 +121,6 @@ class UcpConfirmAccountDeletionView(
         message.text = when (result) {
             AccountDeletionConfirmationResult.Confirmed -> getTranslation("ucp.deleteAccount.confirm.success")
             AccountDeletionConfirmationResult.InvalidToken -> getTranslation("ucp.deleteAccount.confirm.invalidToken")
-            AccountDeletionConfirmationResult.PendingDeletionNotFound -> getTranslation(
-                "ucp.deleteAccount.confirm.notFound",
-            )
             AccountDeletionConfirmationResult.UserNotFound -> getTranslation("ucp.deleteAccount.confirm.userNotFound")
             AccountDeletionConfirmationResult.AnonymizationFailed -> getTranslation("ucp.deleteAccount.confirm.failed")
         }
