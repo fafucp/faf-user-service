@@ -66,7 +66,11 @@ class UcpAccountLinkingView(
 
     private fun showResult(code: String) {
         if (code !in RESULT_CODES) return
-        Notification.show(getTranslation("ucp.accountLinking.result.$code"), NOTIFICATION_DURATION_MS, Notification.Position.MIDDLE)
+        Notification.show(
+            getTranslation("ucp.accountLinking.result.$code"),
+            NOTIFICATION_DURATION_MS,
+            Notification.Position.MIDDLE,
+        )
             .addThemeVariants(NotificationVariant.LUMO_ERROR)
     }
 
@@ -96,9 +100,11 @@ class UcpAccountLinkingView(
         val verificationToken = ucpGogLinkService.buildGogToken(userId)
         val tokenHint = Paragraph().apply {
             style.set("margin", "0")
-            add(Span(getTranslation("ucp.accountLinking.gog.tokenLabel") + " ").apply {
-                style.set("font-weight", "bold")
-            })
+            add(
+                Span(getTranslation("ucp.accountLinking.gog.tokenLabel") + " ").apply {
+                    style.set("font-weight", "bold")
+                },
+            )
             add(Span(verificationToken))
         }
         val instructions = buildGogInstructions()
@@ -177,7 +183,8 @@ class UcpAccountLinkingView(
                 InstructionSegment(getTranslation("ucp.accountLinking.gog.instructions.line2.number") + " ", true),
                 InstructionSegment(getTranslation("ucp.accountLinking.gog.instructions.line2.text") + " "),
                 InstructionSegment(
-                    getTranslation("ucp.accountLinking.gog.instructions.line2.highlight") + " ", true,
+                    getTranslation("ucp.accountLinking.gog.instructions.line2.highlight") + " ",
+                    true,
                 ),
                 InstructionSegment(getTranslation("ucp.accountLinking.gog.instructions.line2.suffix")),
             ),
@@ -212,12 +219,14 @@ class UcpAccountLinkingView(
             style.set("margin", "0")
             style.set("white-space", "pre-wrap")
             segments.forEach { segment ->
-                add(Span(segment.text).apply {
-                    if (segment.bold) {
-                        style.set("font-weight", "bold")
-                    }
-                    style.set("display", "inline")
-                })
+                add(
+                    Span(segment.text).apply {
+                        if (segment.bold) {
+                            style.set("font-weight", "bold")
+                        }
+                        style.set("display", "inline")
+                    },
+                )
             }
         }
     }
@@ -279,15 +288,19 @@ class UcpAccountLinkingView(
             style.set("position", "absolute")
             style.set("z-index", "10")
             isVisible = false
-            add(Span(title).apply {
-                style.set("font-weight", "600")
-                style.set("font-size", "var(--lumo-font-size-s)")
-            })
-            add(Paragraph(text).apply {
-                style.set("margin", "0")
-                style.set("font-size", "var(--lumo-font-size-s)")
-                style.set("white-space", "pre-line")
-            })
+            add(
+                Span(title).apply {
+                    style.set("font-weight", "600")
+                    style.set("font-size", "var(--lumo-font-size-s)")
+                },
+            )
+            add(
+                Paragraph(text).apply {
+                    style.set("margin", "0")
+                    style.set("font-size", "var(--lumo-font-size-s)")
+                    style.set("white-space", "pre-line")
+                },
+            )
         }
     }
 
