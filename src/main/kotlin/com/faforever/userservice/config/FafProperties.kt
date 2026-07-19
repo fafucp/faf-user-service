@@ -222,7 +222,7 @@ interface FafProperties {
         @NotBlank
         fun tokenFormat(): String
 
-        @WithDefault("1444785261")
+        @NotBlank
         fun forgedAllianceProductId(): String
     }
 }

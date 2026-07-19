@@ -114,7 +114,7 @@ class UcpAccountLinkingView(
                 UcpGogLinkService.LinkResult.Success -> {
                     Notification.show(
                         getTranslation("ucp.accountLinking.result.gogSuccess"),
-                        5000,
+                        NOTIFICATION_DURATION_MS,
                         Notification.Position.MIDDLE,
                     ).addThemeVariants(NotificationVariant.LUMO_SUCCESS)
                     services.removeAll()
@@ -123,27 +123,27 @@ class UcpAccountLinkingView(
                 }
                 UcpGogLinkService.LinkResult.InvalidUsername -> Notification.show(
                     getTranslation("ucp.accountLinking.result.gogInvalidUsername"),
-                    5000,
+                    NOTIFICATION_DURATION_MS,
                     Notification.Position.MIDDLE,
                 ).addThemeVariants(NotificationVariant.LUMO_ERROR)
                 UcpGogLinkService.LinkResult.ProfileTokenNotSet -> Notification.show(
                     getTranslation("ucp.accountLinking.result.gogProfileTokenNotSet"),
-                    5000,
+                    NOTIFICATION_DURATION_MS,
                     Notification.Position.MIDDLE,
                 ).addThemeVariants(NotificationVariant.LUMO_ERROR)
                 UcpGogLinkService.LinkResult.NoGameOwnership -> Notification.show(
                     getTranslation("ucp.accountLinking.result.gogNoGameOwnership"),
-                    5000,
+                    NOTIFICATION_DURATION_MS,
                     Notification.Position.MIDDLE,
                 ).addThemeVariants(NotificationVariant.LUMO_ERROR)
                 UcpGogLinkService.LinkResult.AlreadyLinkedToOther -> Notification.show(
                     getTranslation("ucp.accountLinking.result.gogAlreadyLinkedToOther"),
-                    5000,
+                    NOTIFICATION_DURATION_MS,
                     Notification.Position.MIDDLE,
                 ).addThemeVariants(NotificationVariant.LUMO_ERROR)
                 UcpGogLinkService.LinkResult.Failed -> Notification.show(
                     getTranslation("ucp.accountLinking.result.gogFailed"),
-                    5000,
+                    NOTIFICATION_DURATION_MS,
                     Notification.Position.MIDDLE,
                 ).addThemeVariants(NotificationVariant.LUMO_ERROR)
             }

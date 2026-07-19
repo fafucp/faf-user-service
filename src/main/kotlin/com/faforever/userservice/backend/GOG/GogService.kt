@@ -51,8 +51,7 @@ class GogService(
 
         private val PROFILE_USER_STATUS_PATTERN: Pattern =
             Pattern.compile(
-                """window\.profilesData\.(?:profileUserPreferences|
-                currentUserPreferences)\s*=\s*\{.*?"bio"\s*:\s*"(.*?)"""",
+                """window\.profilesData\.profileUserPreferences\s*=\s*\{.*?"bio"\s*:\s*"(.*?)"""",
                 Pattern.DOTALL,
             )
     }
