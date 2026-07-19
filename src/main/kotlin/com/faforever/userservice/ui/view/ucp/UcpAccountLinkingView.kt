@@ -262,6 +262,7 @@ class UcpAccountLinkingView(
             style.set("align-items", "flex-start")
         }
         val instructionText = buildInstructionText(segments)
+        instructionText.style.set("min-width", "0")
         return HorizontalLayout(instructionText, popupWrapper).apply {
             isPadding = false
             isSpacing = true
@@ -280,7 +281,9 @@ class UcpAccountLinkingView(
             style.set("border-radius", "var(--lumo-border-radius-s)")
             style.set("background-color", "var(--lumo-base-color)")
             style.set("box-shadow", "var(--lumo-box-shadow-s)")
-            style.set("max-width", "18rem")
+            style.set("width", "18rem")
+            style.set("max-width", "calc(100vw - 2rem)")
+            style.set("box-sizing", "border-box")
             style.set("font-size", "var(--lumo-font-size-s)")
             style.set("margin-top", "0")
             style.set("left", "calc(100% + 0.5rem)")
