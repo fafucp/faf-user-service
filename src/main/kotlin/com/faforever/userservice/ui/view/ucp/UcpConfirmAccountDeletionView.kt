@@ -119,7 +119,11 @@ class UcpConfirmAccountDeletionView(
         }
 
         message.text = when (result) {
-            AccountDeletionConfirmationResult.Confirmed -> getTranslation("ucp.deleteAccount.confirm.success")
+            AccountDeletionConfirmationResult.Confirmed -> {
+                ucpSessionService.logout()
+                ui.ifPresent { it.page.setLocation("/ucp/login") }
+                return
+            }
             AccountDeletionConfirmationResult.InvalidToken -> getTranslation("ucp.deleteAccount.confirm.invalidToken")
             AccountDeletionConfirmationResult.UserNotFound -> getTranslation("ucp.deleteAccount.confirm.userNotFound")
             AccountDeletionConfirmationResult.AnonymizationFailed -> getTranslation("ucp.deleteAccount.confirm.failed")
@@ -129,11 +133,5 @@ class UcpConfirmAccountDeletionView(
         acknowledgement.isVisible = false
         confirmButton.isVisible = false
         loginButton.isVisible = true
-
-        if (result == AccountDeletionConfirmationResult.Confirmed) {
-            ucpSessionService.clear()
-            ui.ifPresent { it.page.setLocation("/ucp/login") }
-            return
-        }
     }
 }
