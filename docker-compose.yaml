@@ -16,7 +16,7 @@ services:
       - "3306:3306"
 
   faf-db-migrations:
-    image: faforever/faf-db-migrations:v143
+    image: faforever/faf-db-migrations:v145
     command: migrate
     environment:
       FLYWAY_URL: jdbc:mysql://faf-db/faf?useSSL=false
@@ -33,6 +33,15 @@ services:
     depends_on:
       faf-db-migrations:
         condition: service_completed_successfully
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
 
   hydra-db:
     image: postgres:16
