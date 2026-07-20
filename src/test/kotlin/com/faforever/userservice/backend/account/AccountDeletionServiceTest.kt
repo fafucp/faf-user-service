@@ -9,11 +9,14 @@ import com.faforever.userservice.config.FafProperties
 import io.quarkus.test.InjectMock
 import io.quarkus.test.junit.QuarkusTest
 import jakarta.inject.Inject
+import jakarta.transaction.TransactionSynchronizationRegistry
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.equalTo
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.eq
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
@@ -42,6 +45,9 @@ class AccountDeletionServiceTest {
 
     @InjectMock
     private lateinit var accountDeletionEventPublisher: AccountDeletionEventPublisher
+
+    @InjectMock
+    private lateinit var transactionSynchronizationRegistry: TransactionSynchronizationRegistry
 
     @Test
     fun requestAccountDeletionCreatesTokenAndSendsConfirmationEmail() {
@@ -101,6 +107,7 @@ class AccountDeletionServiceTest {
         verify(fafTokenService).consumeToken(FafToken.AccountDeletion::class, token)
         verify(accountAnonymizationService).anonymizeUser(user.id!!)
         verify(accountDeletionEventPublisher).publish(event)
+        verify(transactionSynchronizationRegistry, never()).setRollbackOnly()
     }
 
     @Test
@@ -116,6 +123,7 @@ class AccountDeletionServiceTest {
         verifyNoInteractions(userRepository)
         verifyNoInteractions(accountAnonymizationService)
         verifyNoInteractions(accountDeletionEventPublisher)
+        verify(transactionSynchronizationRegistry, never()).setRollbackOnly()
     }
 
     @Test
@@ -130,6 +138,7 @@ class AccountDeletionServiceTest {
 
         assertThat(result, equalTo(AccountDeletionConfirmationResult.UserNotFound))
         verify(fafTokenService).consumeToken(FafToken.AccountDeletion::class, token)
+        verify(transactionSynchronizationRegistry).setRollbackOnly()
         verifyNoInteractions(accountAnonymizationService)
         verifyNoInteractions(accountDeletionEventPublisher)
     }
@@ -149,7 +158,34 @@ class AccountDeletionServiceTest {
         assertThat(result, equalTo(AccountDeletionConfirmationResult.AnonymizationFailed))
         verify(fafTokenService).consumeToken(FafToken.AccountDeletion::class, token)
         verify(accountAnonymizationService).anonymizeUser(user.id!!)
+        verify(transactionSynchronizationRegistry).setRollbackOnly()
         verifyNoInteractions(accountDeletionEventPublisher)
+    }
+
+    @Test
+    fun confirmAccountDeletionReturnsAnonymizationFailedWhenPublishingFails() {
+        val user = buildTestUser()
+        val token = "token"
+        val event = AccountDeletedEvent(
+            userId = user.id!!,
+            username = user.username,
+            email = user.email,
+        )
+        whenever(fafTokenService.consumeToken(FafToken.AccountDeletion::class, token))
+            .thenReturn(FafToken.AccountDeletion(user.id!!))
+        whenever(userRepository.findById(user.id!!)).thenReturn(user)
+        whenever(accountAnonymizationService.anonymizeUser(user.id!!)).thenReturn(event)
+        doThrow(RuntimeException("publishing failed"))
+            .whenever(accountDeletionEventPublisher)
+            .publish(event)
+
+        val result = accountDeletionService.confirmAccountDeletion(token)
+
+        assertThat(result, equalTo(AccountDeletionConfirmationResult.AnonymizationFailed))
+        verify(fafTokenService).consumeToken(FafToken.AccountDeletion::class, token)
+        verify(accountAnonymizationService).anonymizeUser(user.id!!)
+        verify(accountDeletionEventPublisher).publish(event)
+        verify(transactionSynchronizationRegistry).setRollbackOnly()
     }
 
     private fun buildTestUser(

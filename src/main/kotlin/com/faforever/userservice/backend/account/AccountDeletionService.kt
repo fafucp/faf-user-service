@@ -7,6 +7,7 @@ import com.faforever.userservice.backend.security.FafToken
 import com.faforever.userservice.backend.security.FafTokenService
 import com.faforever.userservice.config.FafProperties
 import jakarta.enterprise.context.ApplicationScoped
+import jakarta.transaction.TransactionSynchronizationRegistry
 import jakarta.transaction.Transactional
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -32,6 +33,7 @@ class AccountDeletionService(
     private val fafProperties: FafProperties,
     private val accountAnonymizationService: AccountAnonymizationService,
     private val accountDeletionEventPublisher: AccountDeletionEventPublisher,
+    private val transactionSynchronizationRegistry: TransactionSynchronizationRegistry,
 ) {
     companion object {
         private val LOG: Logger = LoggerFactory.getLogger(AccountDeletionService::class.java)
@@ -80,7 +82,13 @@ class AccountDeletionService(
         val userId = accountDeletionToken.userId
 
         val user = userRepository.findById(userId)
-            ?: return AccountDeletionConfirmationResult.UserNotFound
+            ?: return AccountDeletionConfirmationResult.UserNotFound.also {
+                transactionSynchronizationRegistry.setRollbackOnly()
+                LOG.warn(
+                    "Account deletion confirmation failed because user id {} was not found",
+                    userId,
+                )
+            }
 
         try {
             LOG.info("Confirming account deletion for user id {}", user.id)
@@ -94,6 +102,7 @@ class AccountDeletionService(
             accountDeletionEventPublisher.publish(event)
             return AccountDeletionConfirmationResult.Confirmed
         } catch (exception: Exception) {
+            transactionSynchronizationRegistry.setRollbackOnly()
             LOG.error("Failed to anonymize account for user id {}", userId, exception)
             return AccountDeletionConfirmationResult.AnonymizationFailed
         }
