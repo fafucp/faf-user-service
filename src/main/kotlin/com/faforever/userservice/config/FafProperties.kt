@@ -43,6 +43,10 @@ interface FafProperties {
 
     fun gog(): Gog
 
+    fun nodebb(): Nodebb
+
+    fun wikijs(): WikiJs
+
     interface CloudflareHmacConfig {
         @NotBlank
         fun secret(): String
@@ -96,6 +100,8 @@ interface FafProperties {
         fun passwordReset(): PasswordReset
 
         fun emailChange(): EmailChange
+
+        fun accountDeletion(): AccountDeletion
 
         fun passwordChange(): PasswordChange
 
@@ -181,6 +187,29 @@ interface FafProperties {
             fun notificationMailTemplatePath(): String
         }
 
+        interface AccountDeletion {
+            @WithDefault("3600")
+            fun linkExpirationSeconds(): Long
+
+            @WithDefault("true")
+            fun externalConsumersEnabled(): Boolean
+
+            @NotBlank
+            fun confirmationUrlFormat(): String
+
+            @NotBlank
+            fun subject(): String
+
+            @NotBlank
+            fun mailTemplatePath(): String
+
+            @NotBlank
+            fun notificationSubject(): String
+
+            @NotBlank
+            fun notificationMailTemplatePath(): String
+        }
+
         interface Username {
             @WithDefault("30")
             fun minimumDaysBetweenUsernameChange(): Int
@@ -212,5 +241,27 @@ interface FafProperties {
 
         @NotBlank
         fun forgedAllianceProductId(): String
+    }
+
+    interface Nodebb {
+        @NotBlank
+        fun readApiUrl(): String
+
+        @NotBlank
+        fun writeApiUrl(): String
+
+        @NotBlank
+        fun adminToken(): String
+    }
+
+    interface WikiJs {
+        @NotBlank
+        fun graphqlUrl(): String
+
+        @NotBlank
+        fun token(): String
+
+        @WithDefault("42")
+        fun replaceUserId(): Int
     }
 }
